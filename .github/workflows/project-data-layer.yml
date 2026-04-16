@@ -1,0 +1,50 @@
+name: project_data_layer
+
+on:
+  workflow_dispatch:
+    inputs:
+      workspace:
+        description: "OpenTofu workspace (for example: dev, stage, prod)"
+        required: true
+        type: string
+      action:
+        description: "Run plan or apply"
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+
+jobs:
+  rollout:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+      TF_STATE_REGION: ${{ secrets.TF_STATE_REGION }}
+      TF_STATE_DYNAMODB_TABLE: ${{ secrets.TF_STATE_DYNAMODB_TABLE }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+      GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      GOOGLE_PROJECT: ${{ secrets.GOOGLE_PROJECT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.11.6
+
+      - name: Enforce OpenTofu 1.11.6
+        run: |
+          VERSION="$(tofu version -json | jq -r '.terraform_version')"
+          test "${VERSION}" = "1.11.6"
+
+      - name: Roll out layer
+        run: |
+          ./scripts/tofu-layer-run.sh \
+            project_data_layer \
+            layers/project_data_layer \
+            "${{ inputs.workspace }}" \
+            "${{ inputs.action }}"

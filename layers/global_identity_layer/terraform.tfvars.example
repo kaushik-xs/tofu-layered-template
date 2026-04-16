@@ -1,0 +1,7 @@
+aws_region     = "us-east-1"
+gcp_project_id = "example-project-id"
+gcp_region     = "us-central1"
+github_owner   = "your-org"
+github_token   = "set-via-env-or-ci"
+vault_address  = "https://vault.example.com"
+vault_token    = "set-via-env-or-ci"
