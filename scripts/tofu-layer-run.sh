@@ -1,6 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Runs OpenTofu for a single layer/workspace with a fixed backend key path.
+#
+# Usage:
+#   TF_STATE_BUCKET=<bucket> TF_STATE_REGION=<region> \
+#     ./scripts/tofu-layer-run.sh <layer_name> <layer_dir> <workspace> <action>
+#
+# Required args:
+#   <layer_name>  Logical layer name used in remote state key
+#   <layer_dir>   Path to the layer directory
+#   <workspace>   Workspace/environment name used in remote state key
+#   <action>      Either "plan" or "apply"
+#
+# Optional env:
+#   TF_STATE_DYNAMODB_TABLE=<table>  Enable state locking with DynamoDB
+#
+# Examples:
+#   TF_STATE_BUCKET=my-tf-state TF_STATE_REGION=us-east-1 \
+#     ./scripts/tofu-layer-run.sh global_identity_layer layers/global_identity_layer dev plan
+#
+#   TF_STATE_BUCKET=my-tf-state TF_STATE_REGION=us-east-1 TF_STATE_DYNAMODB_TABLE=tf-locks \
+#     ./scripts/tofu-layer-run.sh global_identity_layer layers/global_identity_layer prod apply
+#
 EXPECTED_TOFU_VERSION="1.11.6"
 
 LAYER_NAME="${1:?layer_name is required}"

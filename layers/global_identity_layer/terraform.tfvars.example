@@ -5,3 +5,6 @@ github_owner   = "your-org"
 github_token   = "set-via-env-or-ci"
 vault_address  = "https://vault.example.com"
 vault_token    = "set-via-env-or-ci"
+route53_hosted_zone_names = [
+  "example.com"
+]

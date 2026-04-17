@@ -34,3 +34,8 @@ variable "vault_token" {
   type        = string
   sensitive   = true
 }
+
+variable "route53_hosted_zone_names" {
+  description = "Route53 hosted zone domain names (for example, [\"example.com\", \"example.org\"])."
+  type        = set(string)
+}
