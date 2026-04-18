@@ -16,3 +16,8 @@ output "subnetwork_ids" {
   description = "Flattened subnet key => subnetwork id."
   value       = { for k, v in google_compute_subnetwork.this : k => v.id }
 }
+
+output "subnetwork_cidrs" {
+  description = "Flattened subnet key => ip_cidr_range (same keys as subnetwork_ids)."
+  value       = { for k, v in google_compute_subnetwork.this : k => v.ip_cidr_range }
+}

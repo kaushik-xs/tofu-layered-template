@@ -76,8 +76,10 @@ variable "compute_topology" {
     Declarative VM layout for AWS and GCP. Subnet and network identifiers resolve from networking remote state
     (networking_tf_state_key). Each instance sets subnet_key to match networking outputs: aws_networking.subnet_ids
     or gcp_networking.subnetwork_ids (same flattened keys as the networking modules, e.g. core-public-public-a or
-    qa-primary-private-qa-private-subnet). Optional vpc_name and network_name are applied as tags (AWS) or metadata (GCP);
-    private_ip sets a static address in the subnet when provided.
+    qa-primary-private-qa-private-subnet). Optional vpc_name and network_name are applied as tags (AWS) or metadata (GCP).
+    For addressing: set private_ip to a literal address, or set private_ip_host_index to compute the address with
+    cidrhost() from networking outputs (aws_networking.subnet_cidrs / gcp_networking.subnetwork_cidrs). If both are
+    omitted, the cloud assigns an address. Explicit private_ip wins when non-empty.
   EOT
   type        = any
   default     = {}

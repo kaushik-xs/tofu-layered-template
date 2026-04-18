@@ -106,3 +106,31 @@ check "gcp_subnet_keys_in_networking_state" {
     error_message = "Each GCP compute instance must set subnet_key to a key from networking outputs (gcp_networking.subnetwork_ids), e.g. qa-primary-private-qa-private-subnet."
   }
 }
+
+check "aws_subnet_cidr_when_private_ip_host_index" {
+  assert {
+    condition = (
+      local.aws_compute_enabled == false ? true : alltrue([
+        for _, inst in local.aws_compute_instances : (
+          try(inst.private_ip_host_index, null) == null ||
+          contains(keys(local.networking_aws_subnet_cidrs), try(inst.subnet_key, ""))
+        )
+      ])
+    )
+    error_message = "When private_ip_host_index is set, aws_networking.subnet_cidrs from networking remote state must include that subnet_key. Apply the networking layer so subnet_cidrs is in state, or use explicit private_ip."
+  }
+}
+
+check "gcp_subnetwork_cidr_when_private_ip_host_index" {
+  assert {
+    condition = (
+      local.gcp_compute_enabled == false ? true : alltrue([
+        for _, inst in local.gcp_compute_instances : (
+          try(inst.private_ip_host_index, null) == null ||
+          contains(keys(local.networking_gcp_subnetwork_cidrs), try(inst.subnet_key, ""))
+        )
+      ])
+    )
+    error_message = "When private_ip_host_index is set, gcp_networking.subnetwork_cidrs from networking remote state must include that subnet_key. Apply the networking layer so subnetwork_cidrs is in state, or use explicit private_ip."
+  }
+}
