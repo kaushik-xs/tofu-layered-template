@@ -134,3 +134,43 @@ check "gcp_subnetwork_cidr_when_private_ip_host_index" {
     error_message = "When private_ip_host_index is set, gcp_networking.subnetwork_cidrs from networking remote state must include that subnet_key. Apply the networking layer so subnetwork_cidrs is in state, or use explicit private_ip."
   }
 }
+
+check "aws_external_static_ip_key_in_networking" {
+  assert {
+    condition = (
+      !try(var.compute_topology.aws.enabled, false) ? true : alltrue([
+        for _, inst in local.aws_compute_instances : (
+          try(inst.external_static_ip_key, null) == null ||
+          trimspace(tostring(try(inst.external_static_ip_key, ""))) == "" ||
+          (
+            length(data.terraform_remote_state.networking) > 0 ? contains(
+              keys(try(data.terraform_remote_state.networking[0].outputs.aws_external_static_ips.allocation_ids, {})),
+              inst.external_static_ip_key
+            ) : false
+          )
+        )
+      ])
+    )
+    error_message = "When external_static_ip_key is set on an AWS instance, networking remote state must include aws_external_static_ips.allocation_ids with that key. Enable external_static_ips.aws in the networking layer and apply it."
+  }
+}
+
+check "gcp_external_static_ip_key_in_networking" {
+  assert {
+    condition = (
+      !try(var.compute_topology.gcp.enabled, false) ? true : alltrue([
+        for _, inst in local.gcp_compute_instances : (
+          try(inst.external_static_ip_key, null) == null ||
+          trimspace(tostring(try(inst.external_static_ip_key, ""))) == "" ||
+          (
+            length(data.terraform_remote_state.networking) > 0 ? contains(
+              keys(try(data.terraform_remote_state.networking[0].outputs.gcp_external_static_ips.regional_addresses, {})),
+              inst.external_static_ip_key
+            ) : false
+          )
+        )
+      ])
+    )
+    error_message = "When external_static_ip_key is set on a GCP instance, networking remote state must include gcp_external_static_ips.regional_addresses with that key. Enable external_static_ips.gcp in the networking layer and apply it."
+  }
+}

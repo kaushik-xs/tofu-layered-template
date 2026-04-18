@@ -3,6 +3,7 @@ output "aws_compute_instances" {
   value = local.aws_compute_enabled ? {
     instance_ids = module.aws_compute[0].instance_ids
     private_ips  = module.aws_compute[0].private_ips
+    public_ips   = module.aws_compute[0].public_ips
   } : null
 }
 
@@ -12,5 +13,6 @@ output "gcp_compute_instances" {
     instance_self_links = module.gcp_compute[0].instance_self_links
     instance_ids        = module.gcp_compute[0].instance_ids
     network_ips         = module.gcp_compute[0].network_ips
+    public_ips          = module.gcp_compute[0].public_ips
   } : null
 }

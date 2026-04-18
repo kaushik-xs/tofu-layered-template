@@ -20,6 +20,17 @@ resource "google_compute_instance" "this" {
   network_interface {
     subnetwork = var.subnetwork_ids[each.value.subnet_key]
     network_ip = try(each.value.private_ip, null)
+
+    dynamic "access_config" {
+      for_each = (
+        try(each.value.external_static_ip_key, null) != null &&
+        trimspace(tostring(each.value.external_static_ip_key)) != ""
+      ) ? [1] : []
+
+      content {
+        nat_ip = var.regional_external_addresses[each.value.external_static_ip_key]
+      }
+    }
   }
 
   dynamic "service_account" {
@@ -43,6 +54,14 @@ resource "google_compute_instance" "this" {
     precondition {
       condition     = contains(keys(var.subnetwork_ids), each.value.subnet_key)
       error_message = "subnet_key must exist in subnetwork_ids from networking state."
+    }
+    precondition {
+      condition = (
+        try(each.value.external_static_ip_key, null) == null ||
+        trimspace(tostring(try(each.value.external_static_ip_key, ""))) == "" ||
+        contains(keys(var.regional_external_addresses), each.value.external_static_ip_key)
+      )
+      error_message = "external_static_ip_key must exist in regional_external_addresses (networking gcp_external_static_ips.regional_addresses)."
     }
   }
 }

@@ -1,5 +1,10 @@
 locals {
   instances = var.instances
+
+  instances_with_static_eip = {
+    for k, v in local.instances : k => v
+    if try(v.external_static_ip_key, null) != null && trimspace(tostring(v.external_static_ip_key)) != ""
+  }
 }
 
 data "aws_ami" "amazon_linux_2023" {
@@ -61,6 +66,20 @@ resource "aws_instance" "this" {
     precondition {
       condition     = contains(keys(var.subnet_ids), each.value.subnet_key)
       error_message = "subnet_key must exist in subnet_ids from networking state."
+    }
+  }
+}
+
+resource "aws_eip_association" "static" {
+  for_each = local.instances_with_static_eip
+
+  instance_id   = aws_instance.this[each.key].id
+  allocation_id = var.elastic_ip_allocation_ids[each.value.external_static_ip_key]
+
+  lifecycle {
+    precondition {
+      condition     = contains(keys(var.elastic_ip_allocation_ids), each.value.external_static_ip_key)
+      error_message = "external_static_ip_key must exist in elastic_ip_allocation_ids (networking aws_external_static_ips.allocation_ids)."
     }
   }
 }
