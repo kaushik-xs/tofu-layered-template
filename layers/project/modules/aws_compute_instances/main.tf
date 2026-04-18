@@ -127,6 +127,11 @@ resource "null_resource" "instance_local_exec" {
         name               = try(each.value.name, each.key)
         region             = var.region
         instance_id        = aws_instance.this[each.key].id
+        ansible_user       = (
+          try(each.value.ansible_user, null) != null && trimspace(tostring(each.value.ansible_user)) != "" ?
+          trimspace(tostring(each.value.ansible_user)) :
+          try(each.value.os, "amazon-linux-2023") == "ubuntu-server-lts" ? "ubuntu" : "ec2-user"
+        )
       }
     ))
   }

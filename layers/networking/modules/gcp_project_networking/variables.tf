@@ -18,3 +18,13 @@ variable "enable_iap_ssh_firewall" {
   type        = bool
   default     = true
 }
+
+variable "ssh_ingress_source_ranges" {
+  description = <<-EOT
+    When non-empty, create an additional per-VPC rule allowing TCP 22 from these CIDRs (direct SSH).
+    Traffic to the VM public IP comes from your client address, not 35.235.240.0/20, so Ansible or ssh user@PUBLIC_IP
+    needs this unless you use IAP tunneling (ProxyCommand) instead.
+  EOT
+  type        = list(string)
+  default     = []
+}

@@ -38,6 +38,16 @@ variable "gcp_region" {
   type        = string
 }
 
+variable "gcp_compute_ssh_public_key_path" {
+  description = <<-EOT
+    Optional path to an SSH *public* key file (e.g. ~/.ssh/id_rsa.pub) whose matching private key is used with
+    ansible-playbook. The public key is merged into each GCP instance metadata as ssh-keys (ubuntu or debian user),
+    so the VM authorizes SSH before local_exec runs. If empty, add keys via instance metadata, project ssh-keys, or OS Login.
+  EOT
+  type        = string
+  default     = ""
+}
+
 variable "global_identity_workspace" {
   description = "OpenTofu workspace name whose state project should read for global_identity (must match the second argument to scripts/tofu-layer-run.sh for that layer; e.g. global)."
   type        = string
@@ -87,7 +97,10 @@ variable "compute_topology" {
     aws_external_static_ips.allocation_ids or gcp_external_static_ips.regional_addresses.
     Optional per-instance local_exec.command: runs a local-exec provisioner after the VM exists (AWS: after Elastic IP
     association when used). Command is passed to templatestring with public_ip, nat_ip, private_ip, name, region,
-    instance_id, and on GCP also zone. In .tfvars, escape Terraform string interpolation for template placeholders (see example tfvars).
+    instance_id, ansible_user (ubuntu/debian or ec2-user/ubuntu on AWS), and on GCP also zone. In .tfvars, escape
+    Terraform string interpolation for template placeholders (see example tfvars).
+    For GCP SSH from local_exec, set root variable gcp_compute_ssh_public_key_path to your .pub file so instance metadata
+    authorizes the matching private key (no ssh-copy-id needed).
   EOT
   type        = any
   default     = {}

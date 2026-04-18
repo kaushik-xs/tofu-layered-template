@@ -11,6 +11,10 @@ gcp_region     = "us-central1"
 # Optional: default for IAP SSH firewall rules when network_topology.gcp.enable_iap_ssh_firewall is not set.
 # gcp_enable_iap_ssh_firewall = false
 
+# Optional: CIDRs allowed to reach TCP 22 directly (your public IP /32, or 0.0.0.0/0 for open SSH — not recommended in prod).
+# Needed for ansible-playbook -i '<vm_public_ip>,'; IAP-only rules do not allow that path. When omitted, use nested key under gcp.
+# gcp_ssh_ingress_source_ranges = ["203.0.113.0/24"]
+
 # Optional: declarative VPC layout. This layer applies the entry for `aws_region` under
 # `network_topology.aws.regions` and the entry for `gcp_project_id` under
 # `network_topology.gcp.projects` (OpenTofu cannot use one module per region/project with
@@ -55,6 +59,8 @@ network_topology = {
     enabled = true
     # Optional: per-VPC firewall allowing SSH from IAP (35.235.240.0/20). If omitted, uses gcp_enable_iap_ssh_firewall at the top of this file (default true).
     enable_iap_ssh_firewall = false
+    # Optional: CIDRs for direct SSH (tcp/22). Needed for ansible/ssh to the VM public IP; see gcp_ssh_ingress_source_ranges at top.
+    # ssh_ingress_source_ranges = ["0.0.0.0/0"]
     projects = {
       example-project-id = {
         region = "us-central1"
@@ -79,6 +85,7 @@ network_topology = {
 }
 
 # Optional: reserved public IPs (separate from network_topology). Same region/project scoping as above.
+# IAP / SSH firewall CIDRs belong under network_topology.gcp (or root gcp_* vars), not here — extra keys are ignored.
 external_static_ips = {
   aws = {
     enabled = true

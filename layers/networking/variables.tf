@@ -42,6 +42,15 @@ variable "gcp_enable_iap_ssh_firewall" {
   default     = true
 }
 
+variable "gcp_ssh_ingress_source_ranges" {
+  description = <<-EOT
+    Default when network_topology.gcp.ssh_ingress_source_ranges is omitted: optional CIDRs allowed for direct SSH
+    (tcp/22) to VMs in each VPC. Empty means no extra rule (IAP-only unless you manage firewalls elsewhere).
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "network_topology" {
   description = <<-EOT
     Abstract multi-cloud network layout. When aws.enabled or gcp.enabled is true, the corresponding
@@ -49,6 +58,8 @@ variable "network_topology" {
     Azure is reserved for future use and ignored by this layer.
     Optional network_topology.gcp.enable_iap_ssh_firewall (bool): when true, create IAP SSH firewall rules
     on each VPC; when omitted, gcp_enable_iap_ssh_firewall at the root of this file is used.
+    Optional network_topology.gcp.ssh_ingress_source_ranges (list): CIDRs for direct SSH to tcp/22; when omitted,
+    gcp_ssh_ingress_source_ranges at the root of this file is used (default []).
   EOT
   type        = any
   default     = {}
@@ -60,6 +71,8 @@ variable "external_static_ips" {
     AWS: Elastic IPs (non-ephemeral until released) under aws.regions.<region>.elastic_ips.
     GCP: regional external addresses (google_compute_address) and optional global external
     addresses (google_compute_global_address) under gcp.projects.<project_id>.
+    Do not put firewall settings here: use network_topology.gcp.enable_iap_ssh_firewall and
+    network_topology.gcp.ssh_ingress_source_ranges (or root gcp_* equivalents).
   EOT
   type        = any
   default     = {}

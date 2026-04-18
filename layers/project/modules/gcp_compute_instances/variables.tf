@@ -22,7 +22,8 @@ variable "instances" {
     service_account (email), metadata, labels.
     ubuntu-server-lts uses the ubuntu-2404-lts-amd64 image family (Ubuntu Server 24.04 LTS).
     Optional local_exec: run a local-exec provisioner after the instance exists (null_resource). Set local_exec.command
-    to a shell script; templatestring supplies public_ip, nat_ip, private_ip, name, zone, region, instance_id. Optional
+    to a shell script; templatestring supplies public_ip, nat_ip, private_ip, name, zone, region, instance_id,
+    ansible_user (ubuntu for ubuntu-server-lts, debian for debian-12; override with ansible_user on the instance). Optional
     local_exec.template_vars merges extra name => value pairs into the template map. In .tfvars, escape brace placeholders
     for templatestring (dollar-dollar before the opening brace).
     Optional external_static_ip_key: logical name of a regional reserved address from networking

@@ -55,3 +55,24 @@ resource "google_compute_firewall" "iap_ssh" {
     ports    = ["22"]
   }
 }
+
+# Direct SSH (e.g. ansible-playbook -i '<public_ip>,'): source is your client IP, not IAP. Without this rule,
+# only IAP-based SSH works when enable_iap_ssh_firewall is true. See variable ssh_ingress_source_ranges.
+resource "google_compute_firewall" "ssh_ingress" {
+  for_each = length(var.ssh_ingress_source_ranges) > 0 ? var.vpcs : {}
+
+  name    = "${each.key}-allow-ssh-ingress"
+  network = google_compute_network.this[each.key].name
+
+  description = "Allow direct TCP 22 from configured CIDRs (not IAP); for Ansible or ssh user@public_ip."
+
+  direction = "INGRESS"
+  priority  = 1000
+
+  source_ranges = var.ssh_ingress_source_ranges
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+}

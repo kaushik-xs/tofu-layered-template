@@ -91,6 +91,11 @@ resource "null_resource" "instance_local_exec" {
         zone        = try(each.value.zone, var.default_zone)
         region      = var.region
         instance_id = google_compute_instance.this[each.key].instance_id
+        ansible_user = (
+          try(each.value.ansible_user, null) != null && trimspace(tostring(each.value.ansible_user)) != "" ?
+          trimspace(tostring(each.value.ansible_user)) :
+          try(each.value.os, "debian-12") == "ubuntu-server-lts" ? "ubuntu" : "debian"
+        )
       }
     ))
   }
