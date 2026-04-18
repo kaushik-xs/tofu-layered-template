@@ -42,3 +42,14 @@ variable "network_topology" {
   type        = any
   default     = {}
 }
+
+variable "external_static_ips" {
+  description = <<-EOT
+    Reserved public (static) addresses, separate from VPC topology in network_topology.
+    AWS: Elastic IPs (non-ephemeral until released) under aws.regions.<region>.elastic_ips.
+    GCP: regional external addresses (google_compute_address) and optional global external
+    addresses (google_compute_global_address) under gcp.projects.<project_id>.
+  EOT
+  type        = any
+  default     = {}
+}

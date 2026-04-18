@@ -72,3 +72,41 @@ network_topology = {
     }
   }
 }
+
+# Optional: reserved public IPs (separate from network_topology). Same region/project scoping as above.
+external_static_ips = {
+  aws = {
+    enabled = true
+    regions = {
+      "us-east-1" = {
+        elastic_ips = {
+          nat-egress = {
+            tags = {
+              role = "nat"
+            }
+          }
+        }
+      }
+    }
+  }
+
+  gcp = {
+    enabled = true
+    projects = {
+      example-project-id = {
+        region = "us-central1"
+        regional_external_addresses = {
+          api-ingress = {
+            region      = "us-central1"
+            description = "Regional static IP for forwarding rules / VMs"
+          }
+        }
+        global_external_addresses = {
+          https-lb = {
+            description = "Global static IP for external HTTPS load balancer"
+          }
+        }
+      }
+    }
+  }
+}
