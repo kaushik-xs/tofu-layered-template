@@ -33,11 +33,22 @@ variable "gcp_region" {
   type        = string
 }
 
+variable "gcp_enable_iap_ssh_firewall" {
+  description = <<-EOT
+    Default when network_topology.gcp.enable_iap_ssh_firewall is omitted: add a per-VPC firewall rule
+    allowing IAP for TCP to SSH (35.235.240.0/20 -> tcp/22). Set false if you manage IAP SSH elsewhere.
+  EOT
+  type        = bool
+  default     = true
+}
+
 variable "network_topology" {
   description = <<-EOT
     Abstract multi-cloud network layout. When aws.enabled or gcp.enabled is true, the corresponding
     regions (AWS) or projects (GCP) map is expanded into VPC/VNet resources and tiered subnets.
     Azure is reserved for future use and ignored by this layer.
+    Optional network_topology.gcp.enable_iap_ssh_firewall (bool): when true, create IAP SSH firewall rules
+    on each VPC; when omitted, gcp_enable_iap_ssh_firewall at the root of this file is used.
   EOT
   type        = any
   default     = {}

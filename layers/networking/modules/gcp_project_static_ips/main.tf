@@ -8,7 +8,7 @@ resource "google_compute_address" "regional_external" {
   address_type = "EXTERNAL"
   ip_version   = upper(try(each.value.ip_version, "IPV4"))
 
-  description = try(each.value.description, null)
+  description  = try(each.value.description, null)
   network_tier = try(each.value.network_tier, null) != null ? upper(each.value.network_tier) : null
 }
 

@@ -1,6 +1,7 @@
 ---
+# Targets inventory hosts (use default inventory for localhost, or -i '<ip>,' from Terraform local_exec).
 - name: Setup Ubuntu with required software
-  hosts: local
+  hosts: all
   become: true
 
   roles:

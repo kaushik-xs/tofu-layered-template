@@ -8,6 +8,9 @@ aws_region     = "us-east-1"
 gcp_project_id = "example-project-id"
 gcp_region     = "us-central1"
 
+# Optional: default for IAP SSH firewall rules when network_topology.gcp.enable_iap_ssh_firewall is not set.
+# gcp_enable_iap_ssh_firewall = false
+
 # Optional: declarative VPC layout. This layer applies the entry for `aws_region` under
 # `network_topology.aws.regions` and the entry for `gcp_project_id` under
 # `network_topology.gcp.projects` (OpenTofu cannot use one module per region/project with
@@ -50,6 +53,8 @@ network_topology = {
 
   gcp = {
     enabled = true
+    # Optional: per-VPC firewall allowing SSH from IAP (35.235.240.0/20). If omitted, uses gcp_enable_iap_ssh_firewall at the top of this file (default true).
+    enable_iap_ssh_firewall = false
     projects = {
       example-project-id = {
         region = "us-central1"

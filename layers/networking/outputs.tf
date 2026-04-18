@@ -19,11 +19,11 @@ output "aws_networking" {
 output "gcp_networking" {
   description = "VPC and subnet ids for var.gcp_project_id when GCP topology is enabled and populated."
   value = local.gcp_networking_enabled ? {
-    project_id           = module.gcp_networking[0].project_id
-    network_ids          = module.gcp_networking[0].network_ids
-    network_self_links   = module.gcp_networking[0].network_self_links
-    subnetwork_ids       = module.gcp_networking[0].subnetwork_ids
-    subnetwork_cidrs     = module.gcp_networking[0].subnetwork_cidrs
+    project_id         = module.gcp_networking[0].project_id
+    network_ids        = module.gcp_networking[0].network_ids
+    network_self_links = module.gcp_networking[0].network_self_links
+    subnetwork_ids     = module.gcp_networking[0].subnetwork_ids
+    subnetwork_cidrs   = module.gcp_networking[0].subnetwork_cidrs
   } : null
 }
 
@@ -59,12 +59,12 @@ output "aws_external_static_ips" {
 output "gcp_external_static_ips" {
   description = "Reserved regional and global external addresses for var.gcp_project_id when external_static_ips.gcp is enabled."
   value = local.gcp_static_ips_enabled ? {
-    project_id              = module.gcp_static_ips[0].project_id
-    regional_address_ids    = module.gcp_static_ips[0].regional_address_ids
-    regional_addresses      = module.gcp_static_ips[0].regional_addresses
-    regional_self_links     = module.gcp_static_ips[0].regional_self_links
-    global_address_ids      = module.gcp_static_ips[0].global_address_ids
-    global_addresses        = module.gcp_static_ips[0].global_addresses
-    global_self_links       = module.gcp_static_ips[0].global_self_links
+    project_id           = module.gcp_static_ips[0].project_id
+    regional_address_ids = module.gcp_static_ips[0].regional_address_ids
+    regional_addresses   = module.gcp_static_ips[0].regional_addresses
+    regional_self_links  = module.gcp_static_ips[0].regional_self_links
+    global_address_ids   = module.gcp_static_ips[0].global_address_ids
+    global_addresses     = module.gcp_static_ips[0].global_addresses
+    global_self_links    = module.gcp_static_ips[0].global_self_links
   } : null
 }
