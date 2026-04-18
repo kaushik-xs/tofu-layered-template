@@ -15,12 +15,14 @@
 #     <workspace>/<tf_state_key> in the bucket; default workspace uses <tf_state_key> only).
 #
 # Usage (from repository root):
-#   AWS_PROFILE=<name> ./scripts/tofu-layer-run.sh <layer_name> <workspace> <action>
+#   AWS_PROFILE=<name> GOOGLE_CREDENTIALS=<path-or-json> ./scripts/tofu-layer-run.sh <layer_name> <workspace> <action>
 #
 # <layer_name> must match a directory under layers/ (e.g. project → layers/project).
 #
 # Required env:
-#   AWS_PROFILE  Selects terraform.<profile>.<workspace>.tfvars in layers/<layer_name>/ (backend + -var-file).
+#   AWS_PROFILE        Selects terraform.<profile>.<workspace>.tfvars in layers/<layer_name>/ (backend + -var-file).
+#   GOOGLE_CREDENTIALS Path to a GCP service account JSON key, or the JSON contents (Google provider / ADC).
+#                      Exported for OpenTofu; also sets GOOGLE_APPLICATION_CREDENTIALS when the value is a readable file.
 #
 # Required args:
 #   <layer_name>   Directory name under layers/ (e.g. global_identity, project)
@@ -44,8 +46,8 @@
 # local state for that profile/workspace does not linger.
 #
 # Example:
-#   AWS_PROFILE=<AWS_PROFILE> ./scripts/tofu-layer-run.sh global_identity dev plan
-#   AWS_PROFILE=<AWS_PROFILE> ./scripts/tofu-layer-run.sh project prod destroy
+#   AWS_PROFILE=<AWS_PROFILE> GOOGLE_CREDENTIALS=/path/to/sa-key.json ./scripts/tofu-layer-run.sh global_identity dev plan
+#   AWS_PROFILE=<AWS_PROFILE> GOOGLE_CREDENTIALS=/path/to/sa-key.json ./scripts/tofu-layer-run.sh project prod destroy
 #
 set -euo pipefail
 
@@ -56,6 +58,7 @@ _tofu_layer_run_print_tofu_cmd() {
   printf '%q ' "$@"
   printf '\n'
 }
+
 
 EXPECTED_TOFU_VERSION="1.11.6"
 
@@ -73,6 +76,20 @@ if [[ ! -d "${LAYER_DIR}" ]]; then
 fi
 
 : "${AWS_PROFILE:?AWS_PROFILE is required (selects terraform.<profile>.<workspace>.tfvars)}"
+: "${GOOGLE_CREDENTIALS:?GOOGLE_CREDENTIALS is required (GCP service account key path or JSON; used by the Google provider)}"
+
+export GOOGLE_CREDENTIALS
+# ADC and many tools expect a file path; set when GOOGLE_CREDENTIALS is a readable file.
+if [[ -f "${GOOGLE_CREDENTIALS}" && -r "${GOOGLE_CREDENTIALS}" ]]; then
+  export GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_CREDENTIALS}"
+fi
+
+GOOGLE_CREDENTIALS_CLIENT_EMAIL=""
+if [[ -f "${GOOGLE_CREDENTIALS}" && -r "${GOOGLE_CREDENTIALS}" ]]; then
+  GOOGLE_CREDENTIALS_CLIENT_EMAIL="$(jq -r '.client_email // empty' "${GOOGLE_CREDENTIALS}" 2>/dev/null || printf '')"
+else
+  GOOGLE_CREDENTIALS_CLIENT_EMAIL="$(printf '%s' "${GOOGLE_CREDENTIALS}" | jq -r '.client_email // empty' 2>/dev/null || printf '')"
+fi
 
 TFVARS_PATH="${LAYER_DIR}/terraform.${AWS_PROFILE}.${WORKSPACE_NAME}.tfvars"
 if [[ ! -f "${TFVARS_PATH}" ]]; then
@@ -135,6 +152,16 @@ _tofu_layer_run_print_summary() {
     _r=; _b=; _title=; _bar=; _plan_c=; _apply_c=; _destroy_c=
   fi
 
+  local _gcp_disp="${GOOGLE_CREDENTIALS}"
+  if ((${#_gcp_disp} > 72)); then
+    _gcp_disp="${_gcp_disp:0:69}..."
+  fi
+
+  local _ce_disp="${GOOGLE_CREDENTIALS_CLIENT_EMAIL}"
+  if [[ -z "${_ce_disp}" ]]; then
+    _ce_disp="(not found)"
+  fi
+
   local _lw=14
   local _remote_key="${tf_state_key}"
   if [[ "${WORKSPACE_NAME}" != "default" ]]; then
@@ -170,6 +197,8 @@ _tofu_layer_run_print_summary() {
     "🧱 OpenTofu layer run"
     "${_mode}"
     "$(printf '%s %-*s %s' "🔐" "${_lw}" "AWS profile" "${AWS_PROFILE}")"
+    "$(printf '%s %-*s %s' "🔑" "${_lw}" "GCP creds" "${_gcp_disp}")"
+    "$(printf '%s %-*s %s' "📧" "${_lw}" "client_email" "${_ce_disp}")"
     "$(printf '%s %-*s %s' "📄" "${_lw}" "Var file" "${TFVARS_PATH}")"
     "$(printf '%s %-*s %s' "🌿" "${_lw}" "Workspace" "${WORKSPACE_NAME} (OpenTofu workspace = 2nd arg; same basename as tfvars)")"
     "$(printf '%s %-*s %s' "☁️" "${_lw}" "Backend" "${_uri}")"

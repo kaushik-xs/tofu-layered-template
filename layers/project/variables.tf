@@ -58,3 +58,27 @@ variable "route53_records" {
   })))
   default = {}
 }
+
+variable "networking_workspace" {
+  description = "OpenTofu workspace whose remote state contains the networking layer outputs. When empty, terraform.workspace is used so project and networking align on the same workspace name (e.g. qa)."
+  type        = string
+  default     = ""
+}
+
+variable "networking_tf_state_key" {
+  description = "tf_state_key from networking's terraform.<profile>.<workspace>.tfvars (prefix before /terraform_<AWS_PROFILE>.tfstate). Required when compute_topology.aws.enabled or compute_topology.gcp.enabled is true."
+  type        = string
+  default     = ""
+}
+
+variable "compute_topology" {
+  description = <<-EOT
+    Declarative VM layout for AWS and GCP. Subnet and network identifiers resolve from networking remote state
+    (networking_tf_state_key). Each instance sets subnet_key to match networking outputs: aws_networking.subnet_ids
+    or gcp_networking.subnetwork_ids (same flattened keys as the networking modules, e.g. core-public-public-a or
+    qa-primary-private-qa-private-subnet). Optional vpc_name and network_name are applied as tags (AWS) or metadata (GCP);
+    private_ip sets a static address in the subnet when provided.
+  EOT
+  type        = any
+  default     = {}
+}
