@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       workspace:
-        description: "OpenTofu workspace (for example: dev, stage, prod)"
+        description: "Workspace: terraform.ci.<name>.tfvars and OpenTofu workspace (e.g. dev, stage, prod)"
         required: true
         type: string
       action:

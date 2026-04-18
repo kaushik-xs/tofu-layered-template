@@ -38,9 +38,9 @@ route53_records = {
 - OpenTofu version is hard-pinned to `1.11.6`.
 - Backend state is configured via S3 backend config at init time.
 
-## Workspace Usage
+## Workspace argument (tfvars + OpenTofu)
 
-Pass the environment name as the workspace argument to `scripts/tofu-layer-run.sh` (for example `dev`). Use a matching var file `terraform.<AWS_PROFILE>.<workspace>.tfvars`. Set `tf_state_key` to the layer prefix only (for example `opentofu/global_identity_layer`); OpenTofu stores state per workspace under `env:/<workspace>/...` in the state bucket.
+The third argument to `scripts/tofu-layer-run.sh` is used for both `terraform.<AWS_PROFILE>.<workspace>.tfvars` and the OpenTofu workspace name (created if missing). Remote state for non-`default` workspaces is stored under `env:/<workspace>/...` in the bucket; the `default` workspace uses the configured key without that prefix. Set `tf_state_key` in tfvars accordingly.
 
 
 ## Resources 

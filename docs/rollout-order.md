@@ -9,4 +9,4 @@ Recommended rollout sequence:
 5. `project_data_layer`
 6. `project_layer`
 
-Run each layer with the same OpenTofu workspace name (for example `dev`, `stage`, `prod`) so remote state and dependencies stay aligned per environment. Use matching `terraform.<profile>.<workspace>.tfvars` files and the layer-only `tf_state_key` prefix (see `scripts/tofu-layer-run.sh`).
+Use the same workspace name (third argument to `scripts/tofu-layer-run.sh`, for example `dev`, `stage`, `prod`) across layers in an environment so remote state, tfvars files, and dependencies stay aligned. That name selects `terraform.<profile>.<workspace>.tfvars` and the OpenTofu workspace (see `scripts/tofu-layer-run.sh`).

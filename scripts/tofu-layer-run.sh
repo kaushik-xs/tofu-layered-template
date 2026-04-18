@@ -8,7 +8,10 @@
 #
 # tf_state_key is a path prefix (no filename, no environment segment). The script sets the
 # S3 backend key to: <tf_state_key>/terraform_<AWS_PROFILE>.tfstate
-# OpenTofu workspaces store non-default workspace state at: env:/<workspace>/<that key>
+# The third script argument is used for both:
+#   - Var file: terraform.<AWS_PROFILE>.<workspace>.tfvars
+#   - OpenTofu workspace: select or create workspace named <workspace> (non-default workspaces
+#     store remote state under env:/<workspace>/... in the bucket; default workspace uses the key as-is).
 #
 # Usage:
 #   AWS_PROFILE=<name> ./scripts/tofu-layer-run.sh <layer_name> <layer_dir> <workspace> <action>
@@ -19,7 +22,7 @@
 # Required args:
 #   <layer_name>   Logical name (echo only)
 #   <layer_dir>    Path to the layer directory
-#   <workspace>    OpenTofu workspace name (created if missing); also selects the tfvars file
+#   <workspace>    Same name for terraform.<profile>.<workspace>.tfvars and OpenTofu workspace
 #   <action>       One of "plan", "apply", or "destroy"
 #
 # Optional env:
@@ -121,7 +124,7 @@ _tofu_layer_run_print_summary() {
     _r=; _b=; _title=; _bar=; _plan_c=; _apply_c=; _destroy_c=
   fi
 
-  local _lw=12
+  local _lw=14
   local _remote_key="${tf_state_key}"
   if [[ "${WORKSPACE_NAME}" != "default" ]]; then
     _remote_key="env:/${WORKSPACE_NAME}/${tf_state_key}"
@@ -157,11 +160,11 @@ _tofu_layer_run_print_summary() {
     "${_mode}"
     "$(printf '%s %-*s %s' "🔐" "${_lw}" "AWS profile" "${AWS_PROFILE}")"
     "$(printf '%s %-*s %s' "📄" "${_lw}" "Var file" "${TFVARS_PATH}")"
+    "$(printf '%s %-*s %s' "🌿" "${_lw}" "Workspace" "${WORKSPACE_NAME} (OpenTofu workspace = 3rd arg; same basename as tfvars)")"
     "$(printf '%s %-*s %s' "☁️" "${_lw}" "Backend" "${_uri}")"
     "$(printf '%*s%s' "${_vo}" "" "${_meta}")"
     "$(printf '%s %-*s %s' "🏗️" "${_lw}" "Layer" "${LAYER_NAME}")"
     "$(printf '%s %-*s %s' "📁" "${_lw}" "Directory" "${LAYER_DIR}")"
-    "$(printf '%s %-*s %s' "🌿" "${_lw}" "Workspace" "${WORKSPACE_NAME}")"
     "${_action_row}"
   )
 
