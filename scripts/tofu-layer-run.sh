@@ -9,20 +9,21 @@
 # tf_state_key is a path prefix (no filename, no environment segment). The script sets the
 # S3 backend key to: <tf_state_key>/terraform_<AWS_PROFILE>.tfstate
 # Init passes workspace_key_prefix= (empty) so the bucket path does not use the default env: segment.
-# The third script argument is used for both:
+# The second script argument (<workspace>) is used for both:
 #   - Var file: terraform.<AWS_PROFILE>.<workspace>.tfvars
 #   - OpenTofu workspace: select or create workspace named <workspace> (non-default workspaces use
 #     <workspace>/<tf_state_key> in the bucket; default workspace uses <tf_state_key> only).
 #
-# Usage:
-#   AWS_PROFILE=<name> ./scripts/tofu-layer-run.sh <layer_name> <layer_dir> <workspace> <action>
+# Usage (from repository root):
+#   AWS_PROFILE=<name> ./scripts/tofu-layer-run.sh <layer_name> <workspace> <action>
+#
+# <layer_name> must match a directory under layers/ (e.g. project → layers/project).
 #
 # Required env:
-#   AWS_PROFILE  Selects terraform.<profile>.<workspace>.tfvars in <layer_dir> (backend + -var-file).
+#   AWS_PROFILE  Selects terraform.<profile>.<workspace>.tfvars in layers/<layer_name>/ (backend + -var-file).
 #
 # Required args:
-#   <layer_name>   Logical name (echo only)
-#   <layer_dir>    Path to the layer directory
+#   <layer_name>   Directory name under layers/ (e.g. global_identity, project)
 #   <workspace>    Same name for terraform.<profile>.<workspace>.tfvars and OpenTofu workspace
 #   <action>       One of "plan", "apply", or "destroy"
 #
@@ -43,8 +44,8 @@
 # local state for that profile/workspace does not linger.
 #
 # Example:
-#   AWS_PROFILE=<AWS_PROFILE> ./scripts/tofu-layer-run.sh global_identity layers/global_identity dev plan
-#   AWS_PROFILE=<AWS_PROFILE> ./scripts/tofu-layer-run.sh global_identity layers/global_identity dev destroy
+#   AWS_PROFILE=<AWS_PROFILE> ./scripts/tofu-layer-run.sh global_identity dev plan
+#   AWS_PROFILE=<AWS_PROFILE> ./scripts/tofu-layer-run.sh project prod destroy
 #
 set -euo pipefail
 
@@ -58,10 +59,18 @@ _tofu_layer_run_print_tofu_cmd() {
 
 EXPECTED_TOFU_VERSION="1.11.6"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
 LAYER_NAME="${1:?layer_name is required}"
-LAYER_DIR="${2:?layer_dir is required}"
-WORKSPACE_NAME="${3:?workspace is required}"
-ACTION="${4:?action is required}"
+WORKSPACE_NAME="${2:?workspace is required}"
+ACTION="${3:?action is required}"
+
+LAYER_DIR="${REPO_ROOT}/layers/${LAYER_NAME}"
+if [[ ! -d "${LAYER_DIR}" ]]; then
+  echo "Layer directory not found: ${LAYER_DIR} (expected layers/${LAYER_NAME} under repo root ${REPO_ROOT})" >&2
+  exit 1
+fi
 
 : "${AWS_PROFILE:?AWS_PROFILE is required (selects terraform.<profile>.<workspace>.tfvars)}"
 
@@ -162,7 +171,7 @@ _tofu_layer_run_print_summary() {
     "${_mode}"
     "$(printf '%s %-*s %s' "🔐" "${_lw}" "AWS profile" "${AWS_PROFILE}")"
     "$(printf '%s %-*s %s' "📄" "${_lw}" "Var file" "${TFVARS_PATH}")"
-    "$(printf '%s %-*s %s' "🌿" "${_lw}" "Workspace" "${WORKSPACE_NAME} (OpenTofu workspace = 3rd arg; same basename as tfvars)")"
+    "$(printf '%s %-*s %s' "🌿" "${_lw}" "Workspace" "${WORKSPACE_NAME} (OpenTofu workspace = 2nd arg; same basename as tfvars)")"
     "$(printf '%s %-*s %s' "☁️" "${_lw}" "Backend" "${_uri}")"
     "$(printf '%*s%s' "${_vo}" "" "${_meta}")"
     "$(printf '%s %-*s %s' "🏗️" "${_lw}" "Layer" "${LAYER_NAME}")"

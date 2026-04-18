@@ -60,6 +60,5 @@ jobs:
         run: |
           ./scripts/tofu-layer-run.sh \
             platform \
-            layers/platform \
             "${{ inputs.workspace }}" \
             "${{ inputs.action }}"

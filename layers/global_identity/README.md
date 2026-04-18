@@ -40,7 +40,7 @@ route53_records = {
 
 ## Workspace argument (tfvars + OpenTofu)
 
-The third argument to `scripts/tofu-layer-run.sh` is used for both `terraform.<AWS_PROFILE>.<workspace>.tfvars` and the OpenTofu workspace name (created if missing). Init uses an empty `workspace_key_prefix`, so state is not under `env:/...`; non-`default` workspaces use `<workspace>/<tf_state_key>/terraform_<profile>.tfstate` in the bucket.
+The second argument to `scripts/tofu-layer-run.sh` is used for both `terraform.<AWS_PROFILE>.<workspace>.tfvars` and the OpenTofu workspace name (created if missing). Init uses an empty `workspace_key_prefix`, so state is not under `env:/...`; non-`default` workspaces use `<workspace>/<tf_state_key>/terraform_<profile>.tfstate` in the bucket.
 
 
 ## Resources 

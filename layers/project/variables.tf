@@ -4,7 +4,7 @@ variable "tf_state_bucket" {
 }
 
 variable "tf_state_key" {
-  description = "S3 key prefix for remote state. scripts/tofu-layer-run.sh passes key=<this>/terraform_<AWS_PROFILE>.tfstate and empty workspace_key_prefix. Non-default workspaces use <workspace>/<key> in the bucket; workspace matches the third script argument."
+  description = "S3 key prefix for remote state. scripts/tofu-layer-run.sh passes key=<this>/terraform_<AWS_PROFILE>.tfstate and empty workspace_key_prefix. Non-default workspaces use <workspace>/<key> in the bucket; workspace matches the second script argument."
   type        = string
 }
 
@@ -39,7 +39,7 @@ variable "gcp_region" {
 }
 
 variable "global_identity_workspace" {
-  description = "OpenTofu workspace name whose state project should read for global_identity (must match the third argument to scripts/tofu-layer-run.sh for that layer; e.g. global)."
+  description = "OpenTofu workspace name whose state project should read for global_identity (must match the second argument to scripts/tofu-layer-run.sh for that layer; e.g. global)."
   type        = string
 }
 

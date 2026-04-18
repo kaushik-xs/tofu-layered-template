@@ -60,6 +60,5 @@ jobs:
         run: |
           ./scripts/tofu-layer-run.sh \
             networking \
-            layers/networking \
             "${{ inputs.workspace }}" \
             "${{ inputs.action }}"

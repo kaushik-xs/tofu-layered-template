@@ -63,6 +63,5 @@ jobs:
         run: |
           ./scripts/tofu-layer-run.sh \
             global_identity \
-            layers/global_identity \
             "${{ inputs.workspace }}" \
             "${{ inputs.action }}"
