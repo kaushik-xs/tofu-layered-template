@@ -8,10 +8,11 @@
 #
 # tf_state_key is a path prefix (no filename, no environment segment). The script sets the
 # S3 backend key to: <tf_state_key>/terraform_<AWS_PROFILE>.tfstate
+# Init passes workspace_key_prefix= (empty) so the bucket path does not use the default env: segment.
 # The third script argument is used for both:
 #   - Var file: terraform.<AWS_PROFILE>.<workspace>.tfvars
-#   - OpenTofu workspace: select or create workspace named <workspace> (non-default workspaces
-#     store remote state under env:/<workspace>/... in the bucket; default workspace uses the key as-is).
+#   - OpenTofu workspace: select or create workspace named <workspace> (non-default workspaces use
+#     <workspace>/<tf_state_key> in the bucket; default workspace uses <tf_state_key> only).
 #
 # Usage:
 #   AWS_PROFILE=<name> ./scripts/tofu-layer-run.sh <layer_name> <layer_dir> <workspace> <action>
@@ -38,7 +39,8 @@
 #
 # Local backend metadata (not the S3 state object) always uses the filename terraform.tfstate inside
 # TF_DATA_DIR. The script sets TF_DATA_DIR to .terraform/terraform_<AWS_PROFILE>_<workspace> so each
-# profile and workspace has a separate tree.
+# profile and workspace has a separate tree. After a successful destroy, that directory is removed so
+# local state for that profile/workspace does not linger.
 #
 # Example:
 #   AWS_PROFILE=<AWS_PROFILE> ./scripts/tofu-layer-run.sh global_identity_layer layers/global_identity_layer dev plan
@@ -127,7 +129,7 @@ _tofu_layer_run_print_summary() {
   local _lw=14
   local _remote_key="${tf_state_key}"
   if [[ "${WORKSPACE_NAME}" != "default" ]]; then
-    _remote_key="env:/${WORKSPACE_NAME}/${tf_state_key}"
+    _remote_key="${WORKSPACE_NAME}/${tf_state_key}"
   fi
   local _uri="s3://${tf_state_bucket}/${_remote_key}"
   local _meta="(region ${tf_state_region}, encrypt=${tf_state_encrypt})"
@@ -259,13 +261,14 @@ INIT_ARGS=(
   "-backend-config=key=${tf_state_key}"
   "-backend-config=region=${tf_state_region}"
   "-backend-config=encrypt=${tf_state_encrypt}"
+  "-backend-config=workspace_key_prefix="
 )
 
 if [[ -n "${TF_STATE_DYNAMODB_TABLE}" ]]; then
   INIT_ARGS+=("-backend-config=dynamodb_table=${TF_STATE_DYNAMODB_TABLE}")
 fi
 
-CURRENT_BACKEND_FP="${tf_state_bucket}|${tf_state_key}|${tf_state_region}|${tf_state_encrypt}|${TF_STATE_DYNAMODB_TABLE:-}"
+CURRENT_BACKEND_FP="${tf_state_bucket}|${tf_state_key}|${tf_state_region}|${tf_state_encrypt}|${TF_STATE_DYNAMODB_TABLE:-}|workspace_key_prefix="
 BACKEND_META_FILE="${TF_DATA_DIR}/terraform.tfstate"
 BACKEND_FP_FILE="${TF_DATA_DIR}/.tofu-layer-run-backend-fingerprint"
 PREV_BACKEND_FP=""
@@ -307,4 +310,6 @@ elif [[ "${ACTION}" == "apply" ]]; then
 else
   _tofu_layer_run_print_tofu_cmd tofu destroy -auto-approve "${TOFU_VARFILE_ARGS[@]}"
   tofu destroy -auto-approve "${TOFU_VARFILE_ARGS[@]}"
+  printf 'Removing local TF_DATA_DIR after destroy: %s\n' "${TF_DATA_DIR}"
+  rm -rf -- "${TF_DATA_DIR}"
 fi

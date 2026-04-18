@@ -26,7 +26,7 @@ Each layer is a standalone OpenTofu project; `scripts/tofu-layer-run.sh` uses `t
 
 ## Backend State
 
-Backend settings (`tf_state_bucket`, `tf_state_key`, `tf_state_region`, `tf_state_encrypt`) live in `terraform.<AWS_PROFILE>.<workspace>.tfvars` per layer. `tf_state_key` is a layer prefix (optionally encode environment in the path). The third script argument sets both the tfvars filename segment and the OpenTofu workspace name; non-default workspaces store remote state under `env:/<workspace>/...` in the bucket.
+Backend settings (`tf_state_bucket`, `tf_state_key`, `tf_state_region`, `tf_state_encrypt`) live in `terraform.<AWS_PROFILE>.<workspace>.tfvars` per layer. `tf_state_key` is a layer prefix (optionally encode environment in the path). The third script argument sets both the tfvars filename segment and the OpenTofu workspace name. `scripts/tofu-layer-run.sh` passes `workspace_key_prefix=` (empty) so remote state is not stored under the default `env:` path; non-default workspaces use `<workspace>/<tf_state_key>/...` in the bucket.
 
 Optional: `TF_STATE_DYNAMODB_TABLE` in the environment adds DynamoDB state locking.
 

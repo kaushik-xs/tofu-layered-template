@@ -4,8 +4,8 @@
 #
 # Where state lives:
 # - Resource state is stored in S3 after init with -backend-config. The configured key is
-#   <tf_state_key>/terraform_<AWS_PROFILE>.tfstate. Named OpenTofu workspaces use objects under
-#   env:/<workspace>/... (see scripts/tofu-layer-run.sh; 3rd arg = tfvars label + workspace name).
+#   <tf_state_key>/terraform_<AWS_PROFILE>.tfstate. scripts/tofu-layer-run.sh sets workspace_key_prefix
+#   empty (no env: segment). Named workspaces use <workspace>/<tf_state_key> in the bucket.
 # - Local OpenTofu metadata lives under TF_DATA_DIR (see scripts/tofu-layer-run.sh), typically
 #   .terraform/terraform_<AWS_PROFILE>_<workspace>/terraform.tfstate — backend config cache only, not the S3 snapshot.
 # - A `terraform.tfstate` file in this directory (same level as *.tf) would mean local state — avoid that;
