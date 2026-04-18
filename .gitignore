@@ -1,5 +1,6 @@
 # Layer-specific secrets/overrides
 /layers/**/terraform.tfvars
+/layers/**/terraform.*.tfvars
 /layers/**/.env
 /layers/**/.env.*
 
