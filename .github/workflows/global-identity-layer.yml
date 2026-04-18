@@ -54,7 +54,7 @@ jobs:
           OUT="${LAYER_DIR}/terraform.${AWS_PROFILE}.tfvars"
           {
             echo "tf_state_bucket = \"${TF_STATE_BUCKET}\""
-            echo "tf_state_key = \"opentofu/${LAYER_NAME}/${WS}/terraform.tfstate\""
+            echo "tf_state_key = \"opentofu/${LAYER_NAME}/${WS}\""
             echo "tf_state_region = \"${TF_STATE_REGION}\""
             echo "tf_state_encrypt = true"
           } > "${OUT}"

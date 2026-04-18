@@ -1,5 +1,5 @@
 tf_state_bucket  = "your-tf-state-bucket"
-tf_state_key     = "opentofu/platform_data_layer/dev/terraform.tfstate"
+tf_state_key     = "opentofu/platform_data_layer/dev"
 tf_state_region  = "us-east-1"
 tf_state_encrypt = true
 

@@ -3,9 +3,10 @@
 # would prompt for those variables even when passing -backend-config.
 #
 # Where state lives:
-# - Resource state is stored in S3 at s3://<tf_state_bucket>/<tf_state_key> after init with -backend-config.
-# - `.terraform/terraform.tfstate` (under this layer) only caches backend configuration; it is not a copy of
-#   the full remote state payload.
+# - Resource state is stored in S3 at s3://<tf_state_bucket>/<full state key> after init with -backend-config.
+#   scripts/tofu-layer-run.sh uses tf_state_key from tfvars as a prefix and sets key to <tf_state_key>/terraform_<AWS_PROFILE>.tfstate.
+# - Local OpenTofu metadata lives under TF_DATA_DIR (see scripts/tofu-layer-run.sh), typically
+#   .terraform/terraform_<AWS_PROFILE>/terraform.tfstate — backend config cache only, not the S3 state snapshot.
 # - A `terraform.tfstate` file in this directory (same level as *.tf) would mean local state — avoid that;
 #   use init with the same backend flags as the scripts, or `tofu init -migrate-state` when switching backends.
 terraform {

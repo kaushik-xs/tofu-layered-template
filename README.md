@@ -35,7 +35,7 @@ GitHub Actions sets `AWS_PROFILE=ci`, writes `layers/<layer>/terraform.ci.tfvars
 ## Local Usage
 
 ```bash
-export AWS_PROFILE=regere
+export AWS_PROFILE=<AWS_PROFILE>
 ./scripts/tofu-init-from-tfvars.sh layers/global_identity_layer
 ./scripts/tofu-layer-run.sh global_identity_layer layers/global_identity_layer dev plan
 ```

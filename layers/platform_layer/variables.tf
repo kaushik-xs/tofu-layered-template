@@ -4,7 +4,7 @@ variable "tf_state_bucket" {
 }
 
 variable "tf_state_key" {
-  description = "S3 object key for remote state (same as tofu init -backend-config=key=...)."
+  description = "S3 key prefix for remote state; scripts/tofu-layer-run.sh passes -backend-config key=<this>/terraform_<AWS_PROFILE>.tfstate."
   type        = string
 }
 
