@@ -2,28 +2,29 @@
 #
 # Runs OpenTofu for a single layer with plan, apply, or destroy.
 #
-# Backend config (bucket, key prefix, region, encrypt) is read from the same tfvars as
-# scripts/tofu-init-from-tfvars.sh: terraform.<AWS_PROFILE>.tfvars must define
-# tf_state_bucket, tf_state_key, tf_state_region, tf_state_encrypt.
+# Backend config (bucket, key prefix, region, encrypt) is read from:
+#   terraform.<AWS_PROFILE>.<workspace>.tfvars
+# which must define tf_state_bucket, tf_state_key, tf_state_region, tf_state_encrypt.
 #
-# tf_state_key is a path prefix (S3 key without the filename). The script sets the backend
-# object key to: <tf_state_key>/terraform_<AWS_PROFILE>.tfstate
+# tf_state_key is a path prefix (no filename, no environment segment). The script sets the
+# S3 backend key to: <tf_state_key>/terraform_<AWS_PROFILE>.tfstate
+# OpenTofu workspaces store non-default workspace state at: env:/<workspace>/<that key>
 #
 # Usage:
 #   AWS_PROFILE=<name> ./scripts/tofu-layer-run.sh <layer_name> <layer_dir> <workspace> <action>
 #
 # Required env:
-#   AWS_PROFILE  Selects terraform.<profile>.tfvars in <layer_dir> (backend + -var-file).
+#   AWS_PROFILE  Selects terraform.<profile>.<workspace>.tfvars in <layer_dir> (backend + -var-file).
 #
 # Required args:
-#   <layer_name>   Logical name (echo only; state key comes from tfvars)
+#   <layer_name>   Logical name (echo only)
 #   <layer_dir>    Path to the layer directory
-#   <workspace>    Label for the run (echo only; state key comes from tfvars)
+#   <workspace>    OpenTofu workspace name (created if missing); also selects the tfvars file
 #   <action>       One of "plan", "apply", or "destroy"
 #
 # Optional env:
 #   TF_STATE_DYNAMODB_TABLE=<table>     Enable state locking with DynamoDB (backend-config)
-#   TF_DATA_DIR=<path>                  Override local OpenTofu data dir (default: <layer_dir>/.terraform/terraform_<AWS_PROFILE>)
+#   TF_DATA_DIR=<path>                  Override local OpenTofu data dir (default: <layer_dir>/.terraform/terraform_<AWS_PROFILE>_<workspace>)
 #   TOFU_FORCE_RECONFIGURE=1            Always run `tofu init -reconfigure` (ignore fingerprint)
 #
 # Init behavior:
@@ -33,8 +34,8 @@
 #   the backend -backend-config values between runs.
 #
 # Local backend metadata (not the S3 state object) always uses the filename terraform.tfstate inside
-# TF_DATA_DIR. The script sets TF_DATA_DIR to .terraform/terraform_<AWS_PROFILE> so each profile
-# has a separate tree: .terraform/terraform_<AWS_PROFILE>/terraform.tfstate.
+# TF_DATA_DIR. The script sets TF_DATA_DIR to .terraform/terraform_<AWS_PROFILE>_<workspace> so each
+# profile and workspace has a separate tree.
 #
 # Example:
 #   AWS_PROFILE=<AWS_PROFILE> ./scripts/tofu-layer-run.sh global_identity_layer layers/global_identity_layer dev plan
@@ -57,9 +58,9 @@ LAYER_DIR="${2:?layer_dir is required}"
 WORKSPACE_NAME="${3:?workspace is required}"
 ACTION="${4:?action is required}"
 
-: "${AWS_PROFILE:?AWS_PROFILE is required (selects terraform.<profile>.tfvars; same as tofu-init-from-tfvars.sh)}"
+: "${AWS_PROFILE:?AWS_PROFILE is required (selects terraform.<profile>.<workspace>.tfvars)}"
 
-TFVARS_PATH="${LAYER_DIR}/terraform.${AWS_PROFILE}.tfvars"
+TFVARS_PATH="${LAYER_DIR}/terraform.${AWS_PROFILE}.${WORKSPACE_NAME}.tfvars"
 if [[ ! -f "${TFVARS_PATH}" ]]; then
   echo "tfvars file not found: ${TFVARS_PATH}" >&2
   exit 1
@@ -121,7 +122,11 @@ _tofu_layer_run_print_summary() {
   fi
 
   local _lw=12
-  local _uri="s3://${tf_state_bucket}/${tf_state_key}"
+  local _remote_key="${tf_state_key}"
+  if [[ "${WORKSPACE_NAME}" != "default" ]]; then
+    _remote_key="env:/${WORKSPACE_NAME}/${tf_state_key}"
+  fi
+  local _uri="s3://${tf_state_bucket}/${_remote_key}"
   local _meta="(region ${tf_state_region}, encrypt=${tf_state_encrypt})"
 
   # Prefix length before backend URI (emoji + label) — used to align the meta continuation
@@ -241,11 +246,10 @@ fi
 
 cd "${LAYER_DIR}"
 
-# Isolate local OpenTofu data per AWS profile. Basename inside TF_DATA_DIR is always terraform.tfstate
-# (OpenTofu/Terraform fixed); we use a profile-named directory under .terraform/ instead.
-export TF_DATA_DIR="${TF_DATA_DIR:-${PWD}/.terraform/terraform_${AWS_PROFILE}}"
+# Isolate local OpenTofu data per AWS profile and workspace.
+export TF_DATA_DIR="${TF_DATA_DIR:-${PWD}/.terraform/terraform_${AWS_PROFILE}_${WORKSPACE_NAME}}"
 
-TOFU_VARFILE_ARGS=("-var-file=terraform.${AWS_PROFILE}.tfvars")
+TOFU_VARFILE_ARGS=("-var-file=terraform.${AWS_PROFILE}.${WORKSPACE_NAME}.tfvars")
 
 INIT_ARGS=(
   "-backend-config=bucket=${tf_state_bucket}"
@@ -257,10 +261,6 @@ INIT_ARGS=(
 if [[ -n "${TF_STATE_DYNAMODB_TABLE}" ]]; then
   INIT_ARGS+=("-backend-config=dynamodb_table=${TF_STATE_DYNAMODB_TABLE}")
 fi
-
-# Backend object key is <tf_state_key from tfvars>/terraform_<AWS_PROFILE>.tfstate.
-# Do not use OpenTofu workspaces here, otherwise S3 backend prepends
-# workspace prefixes such as "env:/<workspace>/...".
 
 CURRENT_BACKEND_FP="${tf_state_bucket}|${tf_state_key}|${tf_state_region}|${tf_state_encrypt}|${TF_STATE_DYNAMODB_TABLE:-}"
 BACKEND_META_FILE="${TF_DATA_DIR}/terraform.tfstate"
@@ -285,6 +285,12 @@ else
 fi
 
 printf '%s\n' "${CURRENT_BACKEND_FP}" > "${BACKEND_FP_FILE}"
+
+_tofu_layer_run_print_tofu_cmd tofu workspace select "${WORKSPACE_NAME}"
+if ! tofu workspace select "${WORKSPACE_NAME}" 2>/dev/null; then
+  _tofu_layer_run_print_tofu_cmd tofu workspace new "${WORKSPACE_NAME}"
+  tofu workspace new "${WORKSPACE_NAME}"
+fi
 
 _tofu_layer_run_print_tofu_cmd tofu validate "${TOFU_VARFILE_ARGS[@]}"
 tofu validate "${TOFU_VARFILE_ARGS[@]}"

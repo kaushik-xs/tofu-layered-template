@@ -1,5 +1,6 @@
+# Save as terraform.<AWS_PROFILE>.<workspace>.tfvars — e.g. terraform.rg2k.dev.tfvars
 tf_state_bucket  = "your-tf-state-bucket"
-tf_state_key     = "opentofu/project_data_layer/dev"
+tf_state_key     = "opentofu/project_data_layer"
 tf_state_region  = "us-east-1"
 tf_state_encrypt = true
 

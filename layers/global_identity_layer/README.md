@@ -40,7 +40,7 @@ route53_records = {
 
 ## Workspace Usage
 
-Use workspaces for environment boundaries (`dev`, `stage`, `prod`).
+Pass the environment name as the workspace argument to `scripts/tofu-layer-run.sh` (for example `dev`). Use a matching var file `terraform.<AWS_PROFILE>.<workspace>.tfvars`. Set `tf_state_key` to the layer prefix only (for example `opentofu/global_identity_layer`); OpenTofu stores state per workspace under `env:/<workspace>/...` in the state bucket.
 
 
 ## Resources 

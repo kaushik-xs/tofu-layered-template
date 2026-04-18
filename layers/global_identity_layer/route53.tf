@@ -3,9 +3,6 @@ resource "aws_route53_zone" "primary" {
 
   name = each.value
 
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 locals {

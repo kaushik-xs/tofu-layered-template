@@ -40,7 +40,7 @@ jobs:
           VERSION="$(tofu version -json | jq -r '.terraform_version')"
           test "${VERSION}" = "1.11.6"
 
-      - name: Write backend tfvars (matches scripts/tofu-init-from-tfvars.sh)
+      - name: Write backend tfvars for layer run
         env:
           TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
           TF_STATE_REGION: ${{ secrets.TF_STATE_REGION }}
@@ -48,10 +48,10 @@ jobs:
           LAYER_NAME=networking_layer
           LAYER_DIR=layers/networking_layer
           WS="${{ inputs.workspace }}"
-          OUT="${LAYER_DIR}/terraform.${AWS_PROFILE}.tfvars"
+          OUT="${LAYER_DIR}/terraform.${AWS_PROFILE}.${WS}.tfvars"
           {
             echo "tf_state_bucket = \"${TF_STATE_BUCKET}\""
-            echo "tf_state_key = \"opentofu/${LAYER_NAME}/${WS}\""
+            echo "tf_state_key = \"opentofu/${LAYER_NAME}\""
             echo "tf_state_region = \"${TF_STATE_REGION}\""
             echo "tf_state_encrypt = true"
           } > "${OUT}"

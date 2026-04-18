@@ -1,10 +1,10 @@
 variable "tf_state_bucket" {
-  description = "S3 bucket for remote state (same value as tofu init -backend-config=bucket=...; set in terraform.<AWS_PROFILE>.tfvars)."
+  description = "S3 bucket for remote state (same value as tofu init -backend-config=bucket=...; set in terraform.<AWS_PROFILE>.<workspace>.tfvars)."
   type        = string
 }
 
 variable "tf_state_key" {
-  description = "S3 key prefix for remote state; scripts/tofu-layer-run.sh passes -backend-config key=<this>/terraform_<AWS_PROFILE>.tfstate."
+  description = "S3 key prefix for remote state (no env segment; workspace isolates state). scripts/tofu-layer-run.sh passes -backend-config key=<this>/terraform_<AWS_PROFILE>.tfstate (non-default workspaces use env:/<workspace>/... in the bucket)."
   type        = string
 }
 
