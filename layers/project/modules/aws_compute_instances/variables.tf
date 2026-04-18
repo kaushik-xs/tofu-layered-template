@@ -10,6 +10,9 @@ variable "instances" {
     Optional: vpc_name / network_name (tags), private_ip (static address in subnet; may be pre-resolved from
     private_ip_host_index at the project root), ami_id, instance_type, security_group_ids (defaults to VPC default SG
     if empty), user_data, tags.
+    Optional local_exec: run a local-exec provisioner after the instance exists and after any Elastic IP association.
+    Set local_exec.command; templatestring supplies public_ip, nat_ip, private_ip, name, region, instance_id,
+    eip_association_id (empty when no static EIP), and optional local_exec.template_vars for extra template keys.
     Optional external_static_ip_key: logical name of an Elastic IP from networking outputs
     (aws_external_static_ips.allocation_ids); associates that EIP to this instance via aws_eip_association.
   EOT

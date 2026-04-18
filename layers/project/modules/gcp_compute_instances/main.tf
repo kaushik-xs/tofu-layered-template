@@ -65,3 +65,25 @@ resource "google_compute_instance" "this" {
     }
   }
 }
+
+resource "null_resource" "instance_local_exec" {
+  for_each = {
+    for k, v in local.instances : k => v
+    if trimspace(try(v.local_exec.command, "")) != ""
+  }
+
+  provisioner "local-exec" {
+    command = templatestring(each.value.local_exec.command, merge(
+      try(each.value.local_exec.template_vars, {}),
+      {
+        public_ip   = try(google_compute_instance.this[each.key].network_interface[0].access_config[0].nat_ip, "")
+        nat_ip      = try(google_compute_instance.this[each.key].network_interface[0].access_config[0].nat_ip, "")
+        private_ip  = google_compute_instance.this[each.key].network_interface[0].network_ip
+        name        = try(each.value.name, each.key)
+        zone        = try(each.value.zone, var.default_zone)
+        region      = var.region
+        instance_id = google_compute_instance.this[each.key].instance_id
+      }
+    ))
+  }
+}

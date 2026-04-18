@@ -23,6 +23,9 @@ networking_tf_state_key = "opentofu/networking"
 # aws_networking.subnet_ids / gcp_networking.subnetwork_ids (flattened keys: "<vpc>-<tier>-<subnet_name>").
 # CIDRs come from networking remote state (subnet_cidrs / subnetwork_cidrs) after applying the networking layer.
 # Addressing: use private_ip, or private_ip_host_index with cidrhost(subnet_cidr, index) (e.g. index 10 => x.x.x.10 in a /24).
+# Optional local_exec.command: local-exec provisioner after the instance exists (AWS: after Elastic IP association when
+# external_static_ip_key is set). Use templatestring placeholders public_ip, nat_ip, private_ip, name, region, instance_id
+# (GCP also zone). In this file, write $${public_ip} not ${public_ip} so HCL keeps the placeholder for templatestring.
 # Optional external_static_ip_key: must match a key from the networking layer external_static_ips block
 # (aws: elastic_ips name => aws_external_static_ips.allocation_ids; gcp: regional_external_addresses name => reserved IPv4 in regional_addresses).
 # The examples below align with network_topology and external_static_ips in layers/networking/terraform.tfvars.example.
@@ -42,6 +45,12 @@ compute_topology = {
           role        = "web"
           environment = "prod"
         }
+        # local_exec = {
+        #   command = <<-EOT
+        #     sleep 30;
+        #     ansible-playbook -u root -i '$${public_ip},' --private-key ~/.ssh/id_rsa -e "pub_ip=$${public_ip}" setup.yml
+        #   EOT
+        # }
       }
       example-db = {
         subnet_key    = "core-database-db-a"
@@ -73,6 +82,12 @@ compute_topology = {
           role        = "app"
           environment = "prod"
         }
+        # local_exec = {
+        #   command = <<-EOT
+        #     sleep 30;
+        #     ansible-playbook -u root -i '$${public_ip},' --private-key ~/.ssh/id_rsa -e "pub_ip=$${public_ip}" setup.yml
+        #   EOT
+        # }
       }
     }
   }

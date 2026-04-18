@@ -83,3 +83,26 @@ resource "aws_eip_association" "static" {
     }
   }
 }
+
+resource "null_resource" "instance_local_exec" {
+  for_each = {
+    for k, v in local.instances : k => v
+    if trimspace(try(v.local_exec.command, "")) != ""
+  }
+
+  provisioner "local-exec" {
+    command = templatestring(each.value.local_exec.command, merge(
+      try(each.value.local_exec.template_vars, {}),
+      {
+        # eip_association_id ties evaluation order after Elastic IP attach when external_static_ip_key is used (unused in templates).
+        eip_association_id = contains(keys(aws_eip_association.static), each.key) ? aws_eip_association.static[each.key].id : ""
+        public_ip          = aws_instance.this[each.key].public_ip
+        private_ip         = aws_instance.this[each.key].private_ip
+        nat_ip             = aws_instance.this[each.key].public_ip
+        name               = try(each.value.name, each.key)
+        region             = var.region
+        instance_id        = aws_instance.this[each.key].id
+      }
+    ))
+  }
+}

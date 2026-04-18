@@ -83,6 +83,9 @@ variable "compute_topology" {
     Optional external_static_ip_key: logical name of a reserved address from the networking layer
     (external_static_ips / Elastic IPs or GCP regional addresses). Must match a key in networking outputs
     aws_external_static_ips.allocation_ids or gcp_external_static_ips.regional_addresses.
+    Optional per-instance local_exec.command: runs a local-exec provisioner after the VM exists (AWS: after Elastic IP
+    association when used). Command is passed to templatestring with public_ip, nat_ip, private_ip, name, region,
+    instance_id, and on GCP also zone. In .tfvars, escape Terraform string interpolation for template placeholders (see example tfvars).
   EOT
   type        = any
   default     = {}
