@@ -7,3 +7,68 @@ tf_state_encrypt = true
 aws_region     = "us-east-1"
 gcp_project_id = "example-project-id"
 gcp_region     = "us-central1"
+
+# Optional: declarative VPC layout. This layer applies the entry for `aws_region` under
+# `network_topology.aws.regions` and the entry for `gcp_project_id` under
+# `network_topology.gcp.projects` (OpenTofu cannot use one module per region/project with
+# different providers in a single root module without static provider aliases).
+network_topology = {
+  aws = {
+    enabled = true
+    regions = {
+      "us-east-1" = {
+        vpcs = {
+          core = {
+            cidr_block = "10.0.0.0/16"
+            tags = {
+              environment = "prod"
+              owner         = "platform"
+            }
+            subnets = {
+              public = [
+                {
+                  name              = "public-a"
+                  cidr_block        = "10.0.1.0/24"
+                  availability_zone = "us-east-1a"
+                  type              = "public"
+                }
+              ]
+              database = [
+                {
+                  name              = "db-a"
+                  cidr_block        = "10.0.10.0/24"
+                  availability_zone = "us-east-1a"
+                  type              = "private"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+
+  gcp = {
+    enabled = true
+    projects = {
+      example-project-id = {
+        region = "us-central1"
+        vpcs = {
+          primary = {
+            routing_mode = "GLOBAL"
+            subnets = {
+              database = [
+                {
+                  name           = "db-subnet"
+                  cidr_block     = "10.10.10.0/24"
+                  region         = "us-central1"
+                  private_access = true
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

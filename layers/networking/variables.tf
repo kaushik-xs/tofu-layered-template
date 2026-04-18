@@ -32,3 +32,13 @@ variable "gcp_region" {
   description = "GCP region used by this layer."
   type        = string
 }
+
+variable "network_topology" {
+  description = <<-EOT
+    Abstract multi-cloud network layout. When aws.enabled or gcp.enabled is true, the corresponding
+    regions (AWS) or projects (GCP) map is expanded into VPC/VNet resources and tiered subnets.
+    Azure is reserved for future use and ignored by this layer.
+  EOT
+  type        = any
+  default     = {}
+}
