@@ -3,7 +3,7 @@ locals {
 }
 
 output "layer_name" {
-  value = "platform_data_layer"
+  value = "networking"
 }
 
 output "workspace" {

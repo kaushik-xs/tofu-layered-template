@@ -2,11 +2,11 @@
 
 Recommended rollout sequence:
 
-1. `global_identity_layer`
-2. `networking_layer`
-3. `platform_data_layer`
-4. `platform_layer`
-5. `project_data_layer`
-6. `project_layer`
+1. `global_identity`
+2. `networking`
+3. `platform_data`
+4. `platform`
+5. `project_data`
+6. `project`
 
 Use the same workspace name (third argument to `scripts/tofu-layer-run.sh`, for example `dev`, `stage`, `prod`) across layers in an environment so remote state, tfvars files, and dependencies stay aligned. That name selects `terraform.<profile>.<workspace>.tfvars` and the OpenTofu workspace (see `scripts/tofu-layer-run.sh`).

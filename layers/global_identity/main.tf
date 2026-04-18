@@ -3,7 +3,7 @@ locals {
 }
 
 output "layer_name" {
-  value = "global_identity_layer"
+  value = "global_identity"
 }
 
 output "workspace" {

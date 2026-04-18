@@ -1,4 +1,4 @@
-name: project_layer
+name: project
 
 on:
   workflow_dispatch:
@@ -45,8 +45,8 @@ jobs:
           TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
           TF_STATE_REGION: ${{ secrets.TF_STATE_REGION }}
         run: |
-          LAYER_NAME=project_layer
-          LAYER_DIR=layers/project_layer
+          LAYER_NAME=project
+          LAYER_DIR=layers/project
           WS="${{ inputs.workspace }}"
           OUT="${LAYER_DIR}/terraform.${AWS_PROFILE}.${WS}.tfvars"
           {
@@ -54,12 +54,14 @@ jobs:
             echo "tf_state_key = \"opentofu/${LAYER_NAME}\""
             echo "tf_state_region = \"${TF_STATE_REGION}\""
             echo "tf_state_encrypt = true"
+            echo "global_identity_workspace = \"global\""
+            echo "global_identity_tf_state_key = \"opentofu/global_identity\""
           } > "${OUT}"
 
       - name: Roll out layer
         run: |
           ./scripts/tofu-layer-run.sh \
-            project_layer \
-            layers/project_layer \
+            project \
+            layers/project \
             "${{ inputs.workspace }}" \
             "${{ inputs.action }}"

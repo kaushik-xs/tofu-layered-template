@@ -1,4 +1,4 @@
-name: global_identity_layer
+name: global_identity
 
 on:
   workflow_dispatch:
@@ -48,8 +48,8 @@ jobs:
           TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
           TF_STATE_REGION: ${{ secrets.TF_STATE_REGION }}
         run: |
-          LAYER_NAME=global_identity_layer
-          LAYER_DIR=layers/global_identity_layer
+          LAYER_NAME=global_identity
+          LAYER_DIR=layers/global_identity
           WS="${{ inputs.workspace }}"
           OUT="${LAYER_DIR}/terraform.${AWS_PROFILE}.${WS}.tfvars"
           {
@@ -62,7 +62,7 @@ jobs:
       - name: Roll out layer
         run: |
           ./scripts/tofu-layer-run.sh \
-            global_identity_layer \
-            layers/global_identity_layer \
+            global_identity \
+            layers/global_identity \
             "${{ inputs.workspace }}" \
             "${{ inputs.action }}"

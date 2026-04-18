@@ -1,0 +1,25 @@
+# Save as terraform.<AWS_PROFILE>.<workspace>.tfvars — e.g. terraform.rg2k.dev.tfvars
+# aws_profile is not set here: scripts/tofu-layer-run.sh exports TF_VAR_aws_profile=$AWS_PROFILE for project.
+tf_state_bucket  = "your-tf-state-bucket"
+tf_state_key     = "opentofu/project"
+tf_state_region  = "us-east-1"
+tf_state_encrypt = true
+
+global_identity_workspace    = "global"
+global_identity_tf_state_key = "global_identity/secrets"
+
+aws_region     = "us-east-1"
+gcp_project_id = "example-project-id"
+gcp_region     = "us-central1"
+
+# Same shape as global_identity; use for project-scoped records only if global_identity already defines some records for this zone (avoid duplicate name+type across layers).
+route53_records = {
+  "example.com" = [
+    {
+      name    = "api"
+      type    = "A"
+      ttl     = 300
+      records = ["203.0.113.10"]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# global_identity_layer
+# global_identity
 
 This layer hosts global identity and security integrations.
 
@@ -13,7 +13,7 @@ route53_hosted_zone_names = [
 ]
 ```
 
-Manage multiple DNS record types for each hosted zone using one variable:
+Manage DNS records for those zones (`route53_records`) — same map/list shape as **project** `route53_records`. **project** can define additional records in those zones (zone IDs via remote state). Do not define the **same** zone + name + record type in both layers, or AWS will reject a duplicate.
 
 ```hcl
 route53_records = {

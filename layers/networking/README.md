@@ -1,3 +1,3 @@
-# networking_layer
+# networking
 
 This layer hosts shared networking resources.

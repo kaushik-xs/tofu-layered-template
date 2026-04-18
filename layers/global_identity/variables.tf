@@ -61,7 +61,7 @@ variable "route53_hosted_zone_names" {
 }
 
 variable "route53_records" {
-  description = "Route53 records grouped by hosted zone name."
+  description = "Route53 records grouped by hosted zone name. project.route53_records uses the same shape; do not duplicate the same zone/name/type there (one stack per record set)."
   type = map(list(object({
     name    = string
     type    = string

@@ -1,4 +1,4 @@
-name: project_data_layer
+name: project_data
 
 on:
   workflow_dispatch:
@@ -45,8 +45,8 @@ jobs:
           TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
           TF_STATE_REGION: ${{ secrets.TF_STATE_REGION }}
         run: |
-          LAYER_NAME=project_data_layer
-          LAYER_DIR=layers/project_data_layer
+          LAYER_NAME=project_data
+          LAYER_DIR=layers/project_data
           WS="${{ inputs.workspace }}"
           OUT="${LAYER_DIR}/terraform.${AWS_PROFILE}.${WS}.tfvars"
           {
@@ -59,7 +59,7 @@ jobs:
       - name: Roll out layer
         run: |
           ./scripts/tofu-layer-run.sh \
-            project_data_layer \
-            layers/project_data_layer \
+            project_data \
+            layers/project_data \
             "${{ inputs.workspace }}" \
             "${{ inputs.action }}"

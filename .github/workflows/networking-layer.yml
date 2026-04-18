@@ -1,4 +1,4 @@
-name: networking_layer
+name: networking
 
 on:
   workflow_dispatch:
@@ -45,8 +45,8 @@ jobs:
           TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
           TF_STATE_REGION: ${{ secrets.TF_STATE_REGION }}
         run: |
-          LAYER_NAME=networking_layer
-          LAYER_DIR=layers/networking_layer
+          LAYER_NAME=networking
+          LAYER_DIR=layers/networking
           WS="${{ inputs.workspace }}"
           OUT="${LAYER_DIR}/terraform.${AWS_PROFILE}.${WS}.tfvars"
           {
@@ -59,7 +59,7 @@ jobs:
       - name: Roll out layer
         run: |
           ./scripts/tofu-layer-run.sh \
-            networking_layer \
-            layers/networking_layer \
+            networking \
+            layers/networking \
             "${{ inputs.workspace }}" \
             "${{ inputs.action }}"

@@ -43,8 +43,8 @@
 # local state for that profile/workspace does not linger.
 #
 # Example:
-#   AWS_PROFILE=<AWS_PROFILE> ./scripts/tofu-layer-run.sh global_identity_layer layers/global_identity_layer dev plan
-#   AWS_PROFILE=<AWS_PROFILE> ./scripts/tofu-layer-run.sh global_identity_layer layers/global_identity_layer dev destroy
+#   AWS_PROFILE=<AWS_PROFILE> ./scripts/tofu-layer-run.sh global_identity layers/global_identity dev plan
+#   AWS_PROFILE=<AWS_PROFILE> ./scripts/tofu-layer-run.sh global_identity layers/global_identity dev destroy
 #
 set -euo pipefail
 
@@ -253,6 +253,11 @@ cd "${LAYER_DIR}"
 
 # Isolate local OpenTofu data per AWS profile and workspace.
 export TF_DATA_DIR="${TF_DATA_DIR:-${PWD}/.terraform/terraform_${AWS_PROFILE}_${WORKSPACE_NAME}}"
+
+# project builds global_identity remote state keys as terraform_<AWS_PROFILE>.tfstate; pass profile into OpenTofu.
+if [[ "${LAYER_NAME}" == "project" ]]; then
+  export TF_VAR_aws_profile="${AWS_PROFILE}"
+fi
 
 TOFU_VARFILE_ARGS=("-var-file=terraform.${AWS_PROFILE}.${WORKSPACE_NAME}.tfvars")
 

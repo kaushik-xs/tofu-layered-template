@@ -3,7 +3,7 @@ locals {
 }
 
 output "layer_name" {
-  value = "project_layer"
+  value = "platform_data"
 }
 
 output "workspace" {

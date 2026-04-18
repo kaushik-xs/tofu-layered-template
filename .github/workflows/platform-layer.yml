@@ -1,4 +1,4 @@
-name: platform_layer
+name: platform
 
 on:
   workflow_dispatch:
@@ -45,8 +45,8 @@ jobs:
           TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
           TF_STATE_REGION: ${{ secrets.TF_STATE_REGION }}
         run: |
-          LAYER_NAME=platform_layer
-          LAYER_DIR=layers/platform_layer
+          LAYER_NAME=platform
+          LAYER_DIR=layers/platform
           WS="${{ inputs.workspace }}"
           OUT="${LAYER_DIR}/terraform.${AWS_PROFILE}.${WS}.tfvars"
           {
@@ -59,7 +59,7 @@ jobs:
       - name: Roll out layer
         run: |
           ./scripts/tofu-layer-run.sh \
-            platform_layer \
-            layers/platform_layer \
+            platform \
+            layers/platform \
             "${{ inputs.workspace }}" \
             "${{ inputs.action }}"
