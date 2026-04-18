@@ -23,6 +23,28 @@ data "aws_ami" "amazon_linux_2023" {
   }
 }
 
+# Ubuntu Server 24.04 LTS (Noble); update the name filter when a new LTS becomes the default you want.
+data "aws_ami" "ubuntu_lts" {
+  count       = length(local.instances) > 0 ? 1 : 0
+  most_recent = true
+  owners      = ["099720109477"]
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-noble-24.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+}
+
 data "aws_subnet" "instance" {
   for_each = local.instances
 
@@ -43,7 +65,10 @@ data "aws_security_group" "vpc_default" {
 resource "aws_instance" "this" {
   for_each = local.instances
 
-  ami           = coalesce(try(each.value.ami_id, null), data.aws_ami.amazon_linux_2023[0].id)
+  ami = coalesce(
+    try(each.value.ami_id, null) != null && trimspace(tostring(each.value.ami_id)) != "" ? each.value.ami_id : null,
+    try(each.value.os, "amazon-linux-2023") == "ubuntu-server-lts" ? data.aws_ami.ubuntu_lts[0].id : data.aws_ami.amazon_linux_2023[0].id
+  )
   instance_type = try(each.value.instance_type, "t3.micro")
   subnet_id     = data.aws_subnet.instance[each.key].id
 

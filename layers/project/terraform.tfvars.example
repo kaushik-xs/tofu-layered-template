@@ -26,6 +26,8 @@ networking_tf_state_key = "opentofu/networking"
 # Optional local_exec.command: local-exec provisioner after the instance exists (AWS: after Elastic IP association when
 # external_static_ip_key is set). Use templatestring placeholders public_ip, nat_ip, private_ip, name, region, instance_id
 # (GCP also zone). In this file, write $${public_ip} not ${public_ip} so HCL keeps the placeholder for templatestring.
+# Optional os: AWS — amazon-linux-2023 (default) or ubuntu-server-lts (Ubuntu Server 24.04 LTS); optional ami_id overrides.
+# GCP — debian-12 (default) or ubuntu-server-lts; optional boot_disk_image overrides.
 # Optional external_static_ip_key: must match a key from the networking layer external_static_ips block
 # (aws: elastic_ips name => aws_external_static_ips.allocation_ids; gcp: regional_external_addresses name => reserved IPv4 in regional_addresses).
 # The examples below align with network_topology and external_static_ips in layers/networking/terraform.tfvars.example.
@@ -40,6 +42,7 @@ compute_topology = {
         network_name           = "core"
         private_ip_host_index  = 10 # 10.0.1.10 when subnet is 10.0.1.0/24 (from networking state)
         external_static_ip_key = "nat-egress" # same key as external_static_ips.aws.regions["us-east-1"].elastic_ips in networking
+        os                     = "ubuntu-server-lts"
         instance_type          = "t3.micro"
         tags = {
           role        = "web"
@@ -75,6 +78,7 @@ compute_topology = {
         network_name          = "primary"
         private_ip_host_index = 10 # 10.10.10.10 when subnet is 10.10.10.0/24 (from networking state)
         external_static_ip_key = "api-ingress" # same key as external_static_ips.gcp.projects["example-project-id"].regional_external_addresses in networking
+        os                    = "ubuntu-server-lts"
         machine_type          = "e2-medium"
         zone                  = "us-central1-a"
         boot_disk_size_gb     = 20

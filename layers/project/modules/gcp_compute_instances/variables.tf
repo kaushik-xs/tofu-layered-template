@@ -18,7 +18,9 @@ variable "instances" {
     Map of logical name => instance settings. subnet_key must match a key in networking layer gcp_networking.subnetwork_ids
     (same flattened key as the networking module: "<vpc>-<tier>-<subnet_name>").
     Optional: vpc_name / network_name (metadata), private_ip (may be pre-resolved from private_ip_host_index at the
-    project root), machine_type, zone, boot_disk_image, service_account (email), metadata, labels.
+    project root), os (debian-12 | ubuntu-server-lts), boot_disk_image (overrides os), machine_type, zone,
+    service_account (email), metadata, labels.
+    ubuntu-server-lts uses the ubuntu-2404-lts-amd64 image family (Ubuntu Server 24.04 LTS).
     Optional local_exec: run a local-exec provisioner after the instance exists (null_resource). Set local_exec.command
     to a shell script; templatestring supplies public_ip, nat_ip, private_ip, name, zone, region, instance_id. Optional
     local_exec.template_vars merges extra name => value pairs into the template map. In .tfvars, escape brace placeholders

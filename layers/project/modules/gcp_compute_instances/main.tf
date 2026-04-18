@@ -1,5 +1,9 @@
 locals {
   instances = var.instances
+
+  # Default OS image when boot_disk_image is not set. ubuntu-server-lts uses the Ubuntu 24.04 LTS family on GCP.
+  gcp_boot_image_debian12   = "projects/debian-cloud/global/images/family/debian-12"
+  gcp_boot_image_ubuntu_lts = "projects/ubuntu-os-cloud/global/images/family/ubuntu-2404-lts-amd64"
 }
 
 resource "google_compute_instance" "this" {
@@ -11,9 +15,13 @@ resource "google_compute_instance" "this" {
 
   boot_disk {
     initialize_params {
-      image = try(each.value.boot_disk_image, "projects/debian-cloud/global/images/family/debian-12")
-      size  = try(each.value.boot_disk_size_gb, 20)
-      type  = try(each.value.boot_disk_type, "pd-balanced")
+      image = (
+        try(each.value.boot_disk_image, null) != null && trimspace(tostring(each.value.boot_disk_image)) != "" ?
+        each.value.boot_disk_image :
+        try(each.value.os, "debian-12") == "ubuntu-server-lts" ? local.gcp_boot_image_ubuntu_lts : local.gcp_boot_image_debian12
+      )
+      size = try(each.value.boot_disk_size_gb, 20)
+      type = try(each.value.boot_disk_type, "pd-balanced")
     }
   }
 

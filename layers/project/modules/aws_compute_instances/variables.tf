@@ -8,8 +8,9 @@ variable "instances" {
     Map of logical name => instance settings. subnet_key must match a key in networking layer aws_networking.subnet_ids
     (same flattened key as the networking module: "<vpc>-<tier>-<subnet_name>").
     Optional: vpc_name / network_name (tags), private_ip (static address in subnet; may be pre-resolved from
-    private_ip_host_index at the project root), ami_id, instance_type, security_group_ids (defaults to VPC default SG
-    if empty), user_data, tags.
+    private_ip_host_index at the project root), os (amazon-linux-2023 | ubuntu-server-lts), ami_id (overrides os),
+    instance_type, security_group_ids (defaults to VPC default SG if empty), user_data, tags.
+    ubuntu-server-lts resolves to Ubuntu Server 24.04 LTS (Noble) x86_64 in this region.
     Optional local_exec: run a local-exec provisioner after the instance exists and after any Elastic IP association.
     Set local_exec.command; templatestring supplies public_ip, nat_ip, private_ip, name, region, instance_id,
     eip_association_id (empty when no static EIP), and optional local_exec.template_vars for extra template keys.
