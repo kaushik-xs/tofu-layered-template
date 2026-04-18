@@ -1,0 +1,22 @@
+---
+- name: Setup Ubuntu with required software
+  hosts: local
+  become: true
+
+  roles:
+    - network-utils
+    - utilities
+    # - opentofu
+    # - vlc
+    # - kdeconnect
+    # - xfce4-terminal
+    - awscli
+    - rclone
+    - ghcli
+    - zerotier
+    - fonts
+    - docker
+    - caddy
+    # - mongodb-tools
+    - shell
+    - ufw

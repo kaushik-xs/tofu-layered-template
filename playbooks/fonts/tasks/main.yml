@@ -1,0 +1,48 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install debconf-utils
+  ansible.builtin.apt:
+    name: debconf-utils
+    state: present
+
+- name: Pre-accept Microsoft Core Fonts EULA
+  ansible.builtin.debconf:
+    name: ttf-mscorefonts-installer
+    question: msttcorefonts/accepted-mscorefonts-eula
+    value: 'true'
+    vtype: boolean
+
+- name: Install Microsoft Core Fonts
+  ansible.builtin.apt:
+    name: ttf-mscorefonts-installer
+    state: present
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Install fontconfig and additional fonts
+  ansible.builtin.apt:
+    name:
+      - fontconfig
+      - fonts-noto
+      - fonts-noto-cjk
+      - fonts-noto-color-emoji
+      - fonts-dejavu
+    state: present
+
+- name: Update font cache
+  ansible.builtin.command: /usr/bin/fc-cache -f -v
+  changed_when: false
+
+- name: Display fonts installation message
+  ansible.builtin.debug:
+    msg:
+      - "Fonts have been successfully installed!"
+      - "Installed fonts:"
+      - "  - Microsoft Core Fonts (Times New Roman, Arial, etc.)"
+      - "  - Noto Fonts (including CJK and emoji support)"
+      - "  - DejaVu Fonts"
+      - "Font cache has been updated."

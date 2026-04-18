@@ -1,0 +1,69 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Check if GitHub CLI is already installed
+  ansible.builtin.stat:
+    path: /usr/bin/gh
+  register: gh_check
+
+- name: Create directory for GitHub CLI GPG key
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: '0755'
+  when: not gh_check.stat.exists
+
+- name: Download GitHub CLI GPG key
+  ansible.builtin.shell: |
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/githubcli-archive-keyring.gpg
+  when: not gh_check.stat.exists
+
+- name: Set permissions on GitHub CLI GPG keyring
+  ansible.builtin.file:
+    path: /usr/share/keyrings/githubcli-archive-keyring.gpg
+    mode: '0644'
+  when: not gh_check.stat.exists
+
+- name: Get system architecture
+  ansible.builtin.setup:
+    gather_subset:
+      - hardware
+  register: system_info
+  when: not gh_check.stat.exists
+
+- name: Add GitHub CLI repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/github-cli.list
+    content: "deb [arch={{ ansible_architecture }} signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\n"
+    mode: '0644'
+  when: not gh_check.stat.exists
+  register: gh_repo
+
+- name: Update apt cache after adding GitHub CLI repository
+  ansible.builtin.apt:
+    update_cache: yes
+  when: not gh_check.stat.exists and gh_repo.changed
+
+- name: Install GitHub CLI
+  ansible.builtin.apt:
+    name: gh
+    state: present
+  when: not gh_check.stat.exists
+
+- name: Verify GitHub CLI installation
+  ansible.builtin.command: /usr/bin/gh --version
+  register: gh_version
+  changed_when: false
+
+- name: Display GitHub CLI installation message
+  ansible.builtin.debug:
+    msg:
+      - "GitHub CLI has been successfully installed!"
+      - "{{ gh_version.stdout_lines[0] }}"
+      - "Authenticate with: gh auth login"
+      - "Check status: gh auth status"

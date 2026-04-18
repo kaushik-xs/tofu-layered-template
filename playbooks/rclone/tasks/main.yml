@@ -1,0 +1,23 @@
+---
+- name: Check if rclone is already installed
+  ansible.builtin.command: which rclone
+  register: rclone_check
+  changed_when: false
+  failed_when: false
+
+- name: Install rclone via official script
+  ansible.builtin.shell: |
+    curl https://rclone.org/install.sh | bash
+  when: rclone_check.rc != 0
+
+- name: Verify rclone installation
+  ansible.builtin.command: rclone version
+  register: rclone_version
+  changed_when: false
+
+- name: Display rclone installation message
+  ansible.builtin.debug:
+    msg:
+      - "Rclone has been successfully installed!"
+      - "{{ rclone_version.stdout_lines[0] }}"
+      - "Configure with: rclone config"

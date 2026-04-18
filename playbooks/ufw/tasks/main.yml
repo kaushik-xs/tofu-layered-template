@@ -1,0 +1,30 @@
+---
+- name: Allow SSH (avoid lockout when enabling UFW)
+  ansible.builtin.command: ufw allow 22/tcp
+  register: ufw_ssh
+  changed_when: '"Skipping" not in (ufw_ssh.stdout | default(""))'
+
+- name: Allow HTTP (port 80)
+  ansible.builtin.command: ufw allow 80/tcp
+  register: ufw_80
+  changed_when: '"Skipping" not in (ufw_80.stdout | default(""))'
+
+- name: Allow HTTPS (port 443)
+  ansible.builtin.command: ufw allow 443/tcp
+  register: ufw_443
+  changed_when: '"Skipping" not in (ufw_443.stdout | default(""))'
+
+- name: Set UFW default incoming policy
+  ansible.builtin.command: ufw default deny incoming
+  register: ufw_default_in
+  changed_when: '"Skipping" not in (ufw_default_in.stdout | default(""))'
+
+- name: Set UFW default outgoing policy
+  ansible.builtin.command: ufw default allow outgoing
+  register: ufw_default_out
+  changed_when: '"Skipping" not in (ufw_default_out.stdout | default(""))'
+
+- name: Enable UFW
+  ansible.builtin.command: ufw --force enable
+  register: ufw_enable
+  changed_when: "ufw_enable.rc == 0 and 'already active' not in (ufw_enable.stderr | default(''))"

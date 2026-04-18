@@ -1,0 +1,15 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install XFCE terminal
+  ansible.builtin.apt:
+    name: xfce4-terminal
+    state: present
+
+- name: Display XFCE terminal installation message
+  ansible.builtin.debug:
+    msg:
+      - "XFCE terminal has been successfully installed!"

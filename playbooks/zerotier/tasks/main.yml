@@ -1,0 +1,32 @@
+---
+- name: Check if ZeroTier is already installed
+  ansible.builtin.command: which zerotier-cli
+  register: zerotier_check
+  changed_when: false
+  failed_when: false
+
+- name: Install ZeroTier via official script
+  ansible.builtin.shell: |
+    curl -s https://install.zerotier.com | bash
+  when: zerotier_check.rc != 0
+
+- name: Ensure ZeroTier service is enabled and started
+  ansible.builtin.service:
+    name: zerotier-one
+    state: started
+    enabled: yes
+
+- name: Verify ZeroTier installation
+  ansible.builtin.command: zerotier-cli --version
+  register: zerotier_version
+  changed_when: false
+
+- name: Display ZeroTier installation message
+  ansible.builtin.debug:
+    msg:
+      - "ZeroTier has been successfully installed!"
+      - "{{ zerotier_version.stdout }}"
+      - "Join a network: sudo zerotier-cli join <network-id>"
+      - "List networks: sudo zerotier-cli listnetworks"
+      - "Leave a network: sudo zerotier-cli leave <network-id>"
+      - "Get your ZeroTier address: sudo zerotier-cli status"

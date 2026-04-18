@@ -1,0 +1,70 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install OpenTofu repository dependencies
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+
+- name: Ensure keyrings directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Download OpenTofu signing key
+  ansible.builtin.get_url:
+    url: https://get.opentofu.org/opentofu.gpg
+    dest: /etc/apt/keyrings/opentofu.gpg
+    mode: '0644'
+
+- name: Download OpenTofu repository GPG key
+  ansible.builtin.get_url:
+    url: https://packages.opentofu.org/opentofu/tofu/gpgkey
+    dest: /etc/apt/keyrings/opentofu-repo.gpg.asc
+    mode: '0644'
+
+- name: Convert OpenTofu repository GPG key to dearmored format
+  ansible.builtin.command:
+    cmd: gpg --no-tty --batch --dearmor -o /etc/apt/keyrings/opentofu-repo.gpg /etc/apt/keyrings/opentofu-repo.gpg.asc
+  args:
+    creates: /etc/apt/keyrings/opentofu-repo.gpg
+
+- name: Ensure OpenTofu keyring files are world-readable
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: '0644'
+  loop:
+    - /etc/apt/keyrings/opentofu.gpg
+    - /etc/apt/keyrings/opentofu-repo.gpg
+
+- name: Configure OpenTofu apt repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/opentofu.list
+    mode: '0644'
+    content: |
+      deb [signed-by=/etc/apt/keyrings/opentofu.gpg,/etc/apt/keyrings/opentofu-repo.gpg] https://packages.opentofu.org/opentofu/tofu/any/ any main
+      deb-src [signed-by=/etc/apt/keyrings/opentofu.gpg,/etc/apt/keyrings/opentofu-repo.gpg] https://packages.opentofu.org/opentofu/tofu/any/ any main
+  register: opentofu_repo
+
+- name: Update apt cache after adding OpenTofu repository
+  ansible.builtin.apt:
+    update_cache: yes
+  when: opentofu_repo.changed
+
+- name: Install OpenTofu package
+  ansible.builtin.apt:
+    name: tofu
+    state: present
+
+- name: Display OpenTofu installation message
+  ansible.builtin.debug:
+    msg:
+      - "OpenTofu has been successfully installed!"

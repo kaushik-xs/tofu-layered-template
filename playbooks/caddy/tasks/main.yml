@@ -1,0 +1,50 @@
+---
+- name: Install required dependencies for Caddy
+  ansible.builtin.apt:
+    name:
+      - debian-keyring
+      - debian-archive-keyring
+      - apt-transport-https
+      - curl
+    state: present
+    update_cache: yes
+
+- name: Download Caddy GPG key
+  ansible.builtin.shell: |
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+
+- name: Set permissions on Caddy GPG keyring
+  ansible.builtin.file:
+    path: /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+    mode: '0644'
+
+- name: Add Caddy repository to sources list
+  ansible.builtin.get_url:
+    url: https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt
+    dest: /etc/apt/sources.list.d/caddy-stable.list
+    mode: '0644'
+
+- name: Update apt cache after adding Caddy repository
+  ansible.builtin.apt:
+    update_cache: yes
+
+- name: Install Caddy
+  ansible.builtin.apt:
+    name: caddy
+    state: present
+
+- name: Ensure Caddy service is enabled and started
+  ansible.builtin.service:
+    name: caddy
+    state: started
+    enabled: yes
+
+- name: Display Caddy installation message
+  ansible.builtin.debug:
+    msg:
+      - "Caddy has been successfully installed!"
+      - "Caddy is running on port 80 (HTTP) and 443 (HTTPS) by default"
+      - "Configuration file: /etc/caddy/Caddyfile"
+      - "Check status with: sudo systemctl status caddy"

@@ -1,0 +1,29 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install common system utilities
+  ansible.builtin.apt:
+    name:
+      - htop
+      - vim
+      - nano
+      - git
+      - curl
+      - wget
+      - unzip
+      - tree
+    state: present
+
+- name: Display installed utilities
+  ansible.builtin.debug:
+    msg:
+      - "Common utilities have been successfully installed!"
+      - "Installed packages:"
+      - "  - System monitoring: htop"
+      - "  - Text editors: vim, nano"
+      - "  - Version control: git"
+      - "  - Download tools: curl, wget"
+      - "  - Utilities: unzip, tree"

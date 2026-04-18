@@ -1,0 +1,24 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install network utilities
+  ansible.builtin.apt:
+    name:
+      - net-tools
+      - dnsutils
+      - traceroute
+      - tcpdump
+    state: present
+
+- name: Display installed network utilities
+  ansible.builtin.debug:
+    msg:
+      - "Network utilities have been successfully installed!"
+      - "Installed packages:"
+      - "  - net-tools (ifconfig, netstat, route, etc.)"
+      - "  - dnsutils (dig, nslookup, etc.)"
+      - "  - traceroute"
+      - "  - tcpdump"

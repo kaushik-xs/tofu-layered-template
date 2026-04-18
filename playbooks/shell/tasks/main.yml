@@ -1,0 +1,22 @@
+---
+- name: Ensure .bashrc exists
+  ansible.builtin.file:
+    path: /home/ubuntu/.bashrc
+    state: touch
+    owner: ubuntu
+    group: ubuntu
+    mode: "0644"
+
+- name: Copy bash aliases file
+  ansible.builtin.copy:
+    src: bash_aliases
+    dest: /home/ubuntu/.bash_aliases
+    owner: ubuntu
+    group: ubuntu
+    mode: "0644"
+
+- name: Ensure .bashrc loads .bash_aliases
+  ansible.builtin.lineinfile:
+    path: /home/ubuntu/.bashrc
+    line: "if [ -f ~/.bash_aliases ]; then . ~/.bash_aliases; fi"
+    create: yes

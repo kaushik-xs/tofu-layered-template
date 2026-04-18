@@ -1,0 +1,16 @@
+# Git
+alias gp='git pull'
+
+# Caddy
+alias caddyreload='sudo systemctl reload caddy'
+
+# Docker
+alias dc='docker compose'
+alias dcd='docker compose down'
+alias dcu='docker compose up -d'
+alias dcl='docker compose logs -f'
+
+# Misc
+alias ll='ls -alF'
+alias la='ls -A'
+alias l='ls -CF'
