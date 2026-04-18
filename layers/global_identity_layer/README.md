@@ -13,6 +13,26 @@ route53_hosted_zone_names = [
 ]
 ```
 
+Manage multiple DNS record types for each hosted zone using one variable:
+
+```hcl
+route53_records = {
+  "example.com" = [
+    {
+      name    = "@"
+      type    = "A"
+      ttl     = 300
+      records = ["203.0.113.10"]
+    },
+    {
+      name    = "www"
+      type    = "CNAME"
+      records = ["example.com"]
+    }
+  ]
+}
+```
+
 ## Constraints
 
 - OpenTofu version is hard-pinned to `1.11.6`.

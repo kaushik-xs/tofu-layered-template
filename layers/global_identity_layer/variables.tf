@@ -39,3 +39,22 @@ variable "route53_hosted_zone_names" {
   description = "Route53 hosted zone domain names (for example, [\"example.com\", \"example.org\"])."
   type        = set(string)
 }
+
+variable "route53_records" {
+  description = "Route53 records grouped by hosted zone name."
+  type = map(list(object({
+    name    = string
+    type    = string
+    ttl     = optional(number, 300)
+    records = list(string)
+  })))
+  default = {}
+
+  validation {
+    condition = alltrue([
+      for zone_name in keys(var.route53_records) :
+      contains(var.route53_hosted_zone_names, zone_name)
+    ])
+    error_message = "All keys in route53_records must be present in route53_hosted_zone_names."
+  }
+}
