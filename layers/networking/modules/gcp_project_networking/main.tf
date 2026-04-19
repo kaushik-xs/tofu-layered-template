@@ -13,6 +13,25 @@ locals {
   ])
 
   subnets_by_key = { for s in local.subnets : s.key => s }
+
+  # One Cloud Router + NAT per (VPC, region). Multiple subnets can share the same key — dedupe with toset.
+  nat_region_keys = toset([
+    for s in local.subnets : "${s.vpc_name}--${try(s.subnet.region, var.default_region)}"
+  ])
+
+  router_nat_instances = {
+    for k in local.nat_region_keys : k => {
+      vpc_name = [for s in local.subnets : s.vpc_name if "${s.vpc_name}--${try(s.subnet.region, var.default_region)}" == k][0]
+      region   = try([for s in local.subnets : s if "${s.vpc_name}--${try(s.subnet.region, var.default_region)}" == k][0].subnet.region, var.default_region)
+    }
+  }
+
+  router_nat_sorted_keys = sort(keys(local.router_nat_instances))
+
+  # Each Cloud Router in a VPC must use a unique private ASN (64512–65534).
+  router_bgp_asn = {
+    for idx, k in local.router_nat_sorted_keys : k => 64512 + idx
+  }
 }
 
 resource "google_compute_network" "this" {
@@ -74,5 +93,33 @@ resource "google_compute_firewall" "ssh_ingress" {
   allow {
     protocol = "tcp"
     ports    = ["22"]
+  }
+}
+
+resource "google_compute_router" "nat" {
+  for_each = var.enable_cloud_nat ? local.router_nat_instances : {}
+
+  name    = "${each.value.vpc_name}-nat-router"
+  region  = each.value.region
+  network = google_compute_network.this[each.value.vpc_name].id
+
+  bgp {
+    asn = local.router_bgp_asn[each.key]
+  }
+}
+
+resource "google_compute_router_nat" "this" {
+  for_each = var.enable_cloud_nat ? local.router_nat_instances : {}
+
+  name   = "${each.value.vpc_name}-nat"
+  router = google_compute_router.nat[each.key].name
+  region = google_compute_router.nat[each.key].region
+
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
   }
 }

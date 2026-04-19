@@ -28,6 +28,8 @@ variable "instances" {
     for templatestring (dollar-dollar before the opening brace).
     Optional external_static_ip_key: logical name of a regional reserved address from networking
     (gcp_external_static_ips.regional_addresses); sets access_config.nat_ip to that IPv4 (API requires the address string, not a resource URL).
+    When local_exec is set, templatestring also receives instance_region, cloud_nat, cloud_nat_enabled, cloud_nat_lookup_key,
+    and cloud_nat_for_instance (the latter two when vpc_name is set; matches networking cloud_nat key "<vpc_name>--<region>").
   EOT
   type        = map(any)
 }
@@ -41,4 +43,16 @@ variable "regional_external_addresses" {
   description = "Logical address name => reserved IPv4 from networking (gcp_external_static_ips.regional_addresses). Unused keys are ignored."
   type        = map(string)
   default     = {}
+}
+
+variable "cloud_nat" {
+  description = "gcp_networking.cloud_nat from networking remote state (vpc--region => router/nat metadata)."
+  type        = map(any)
+  default     = {}
+}
+
+variable "cloud_nat_enabled" {
+  description = "gcp_networking.cloud_nat_enabled from networking remote state."
+  type        = bool
+  default     = false
 }

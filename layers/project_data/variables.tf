@@ -91,6 +91,11 @@ variable "computes" {
     (networking_tf_state_key). Each instance sets subnet_key to match networking outputs: aws_networking.subnet_ids
     or gcp_networking.subnetwork_ids (same flattened keys as the networking modules, e.g. core-public-public-a or
     qa-primary-private-qa-private-subnet). Optional vpc_name and network_name are applied as tags (AWS) or metadata (GCP).
+    On GCP, vpc_name should match the networking VPC key so Cloud NAT can be correlated: this layer merges optional
+    metadata keys cloud-nat-* when gcp_networking.cloud_nat has an entry for "<vpc_name>--<region>" (region from zone).
+    Outbound internet via Cloud NAT does not need a separate attachment—omit external_static_ip_key for a private-only NIC.
+    The gcp_compute module also exposes cloud_nat in outputs and in local_exec templates (cloud_nat, cloud_nat_enabled,
+    cloud_nat_lookup_key, cloud_nat_for_instance when vpc_name is set).
     For addressing: set private_ip to a literal address, or set private_ip_host_index to compute the address with
     cidrhost() from networking outputs (aws_networking.subnet_cidrs / gcp_networking.subnetwork_cidrs). If both are
     omitted, the cloud assigns an address. Explicit private_ip wins when non-empty.

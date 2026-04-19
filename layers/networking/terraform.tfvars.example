@@ -15,6 +15,9 @@ gcp_region     = "us-central1"
 # Needed for ansible-playbook -i '<vm_public_ip>,'; IAP-only rules do not allow that path. When omitted, use nested key under gcp.
 # gcp_ssh_ingress_source_ranges = ["203.0.113.0/24"]
 
+# Optional: default for Cloud NAT when network_topology.gcp.enable_cloud_nat is not set (default true).
+# gcp_enable_cloud_nat = false
+
 # Optional: declarative VPC layout. This layer applies the entry for `aws_region` under
 # `network_topology.aws.regions` and the entry for `gcp_project_id` under
 # `network_topology.gcp.projects` (OpenTofu cannot use one module per region/project with
@@ -61,6 +64,8 @@ network_topology = {
     enable_iap_ssh_firewall = false
     # Optional: CIDRs for direct SSH (tcp/22). Needed for ansible/ssh to the VM public IP; see gcp_ssh_ingress_source_ranges at top.
     # ssh_ingress_source_ranges = ["0.0.0.0/0"]
+    # Optional: set false to skip Cloud Router + Cloud NAT (private VMs then need another egress path). If omitted, uses gcp_enable_cloud_nat at top (default true).
+    # enable_cloud_nat = false
     projects = {
       example-project-id = {
         region = "us-central1"

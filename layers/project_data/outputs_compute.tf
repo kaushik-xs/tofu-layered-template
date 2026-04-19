@@ -14,5 +14,7 @@ output "gcp_compute_instances" {
     instance_ids        = module.gcp_compute[0].instance_ids
     network_ips         = module.gcp_compute[0].network_ips
     public_ips          = module.gcp_compute[0].public_ips
+    cloud_nat           = module.gcp_compute[0].cloud_nat
+    cloud_nat_enabled   = module.gcp_compute[0].cloud_nat_enabled
   } : null
 }

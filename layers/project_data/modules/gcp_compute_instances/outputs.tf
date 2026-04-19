@@ -19,3 +19,13 @@ output "public_ips" {
     for k, v in google_compute_instance.this : k => try(v.network_interface[0].access_config[0].nat_ip, null)
   }
 }
+
+output "cloud_nat" {
+  description = "Passthrough of networking Cloud NAT metadata (same as module input cloud_nat)."
+  value       = var.cloud_nat
+}
+
+output "cloud_nat_enabled" {
+  description = "Passthrough of networking cloud_nat_enabled flag."
+  value       = var.cloud_nat_enabled
+}

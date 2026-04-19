@@ -24,6 +24,8 @@ output "gcp_networking" {
     network_self_links = module.gcp_networking[0].network_self_links
     subnetwork_ids     = module.gcp_networking[0].subnetwork_ids
     subnetwork_cidrs   = module.gcp_networking[0].subnetwork_cidrs
+    cloud_nat_enabled  = module.gcp_networking[0].cloud_nat_enabled
+    cloud_nat          = module.gcp_networking[0].cloud_nat
   } : null
 }
 

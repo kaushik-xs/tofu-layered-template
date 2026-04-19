@@ -28,3 +28,9 @@ variable "ssh_ingress_source_ranges" {
   type        = list(string)
   default     = []
 }
+
+variable "enable_cloud_nat" {
+  description = "When true, create a Cloud Router and Cloud NAT per (VPC, region) so VMs without external IPs can use outbound internet (NAT egress)."
+  type        = bool
+  default     = true
+}

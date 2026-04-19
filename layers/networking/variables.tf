@@ -51,6 +51,15 @@ variable "gcp_ssh_ingress_source_ranges" {
   default     = []
 }
 
+variable "gcp_enable_cloud_nat" {
+  description = <<-EOT
+    Default when network_topology.gcp.enable_cloud_nat is omitted: create Cloud Router + Cloud NAT per VPC region
+    so private VMs can reach the internet without an external IP.
+  EOT
+  type        = bool
+  default     = true
+}
+
 variable "network_topology" {
   description = <<-EOT
     Abstract multi-cloud network layout. When aws.enabled or gcp.enabled is true, the corresponding
@@ -60,6 +69,8 @@ variable "network_topology" {
     on each VPC; when omitted, gcp_enable_iap_ssh_firewall at the root of this file is used.
     Optional network_topology.gcp.ssh_ingress_source_ranges (list): CIDRs for direct SSH to tcp/22; when omitted,
     gcp_ssh_ingress_source_ranges at the root of this file is used (default []).
+    Optional network_topology.gcp.enable_cloud_nat (bool): when false, do not create Cloud NAT; when omitted,
+    gcp_enable_cloud_nat at the root of this file is used (default true).
   EOT
   type        = any
   default     = {}

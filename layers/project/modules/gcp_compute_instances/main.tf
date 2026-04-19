@@ -99,6 +99,22 @@ resource "null_resource" "instance_local_exec" {
           trimspace(tostring(each.value.ansible_user)) :
           try(each.value.os, "debian-12") == "ubuntu-server-lts" ? "ubuntu" : "debian"
         )
+        instance_region = try(
+          regex("^(.+)-[a-z]$", try(each.value.zone, var.default_zone))[0],
+          var.region
+        )
+        cloud_nat         = var.cloud_nat
+        cloud_nat_enabled = var.cloud_nat_enabled
+        cloud_nat_lookup_key = (
+          try(each.value.vpc_name, null) != null && trimspace(tostring(each.value.vpc_name)) != "" ?
+          "${trimspace(tostring(each.value.vpc_name))}--${try(regex("^(.+)-[a-z]$", try(each.value.zone, var.default_zone))[0], var.region)}" :
+          ""
+        )
+        cloud_nat_for_instance = (
+          try(each.value.vpc_name, null) != null && trimspace(tostring(each.value.vpc_name)) != "" ?
+          try(var.cloud_nat["${trimspace(tostring(each.value.vpc_name))}--${try(regex("^(.+)-[a-z]$", try(each.value.zone, var.default_zone))[0], var.region)}"], null) :
+          null
+        )
       }
     ))
   }

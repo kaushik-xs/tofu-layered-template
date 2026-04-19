@@ -7,4 +7,5 @@ module "gcp_networking" {
   vpcs                      = try(var.network_topology.gcp.projects[var.gcp_project_id].vpcs, {})
   enable_iap_ssh_firewall   = try(var.network_topology.gcp.enable_iap_ssh_firewall, var.gcp_enable_iap_ssh_firewall)
   ssh_ingress_source_ranges = try(var.network_topology.gcp.ssh_ingress_source_ranges, var.gcp_ssh_ingress_source_ranges)
+  enable_cloud_nat          = try(var.network_topology.gcp.enable_cloud_nat, var.gcp_enable_cloud_nat)
 }

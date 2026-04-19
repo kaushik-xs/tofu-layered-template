@@ -37,13 +37,21 @@ gcp_region     = "us-central1"
 networking_tf_state_key = "opentofu/networking"
 # networking_workspace    = "qa"
 
+# Cloud NAT (networking layer): after applying networking with Cloud NAT enabled, remote state exposes
+# gcp_networking.cloud_nat (keyed "<vpc_name>--<region>") and gcp_networking.cloud_nat_enabled. This layer passes that
+# into the gcp_compute module and, when an instance sets vpc_name to the same VPC key as in network_topology and
+# zone in that region, merges instance metadata cloud-nat-* (router name, NAT name, region) and local_exec template vars
+# cloud_nat_lookup_key / cloud_nat_for_instance. Private egress does not require external_static_ip_key—omit it for IAP/SSH
+# or internal-only access. Inspect: tofu output -json | jq '.gcp_compute_instances.value.cloud_nat'
+
 # Optional: declarative VMs. Subnet keys must match networking outputs for this region/project:
 # aws_networking.subnet_ids / gcp_networking.subnetwork_ids (flattened keys: "<vpc>-<tier>-<subnet_name>").
 # CIDRs come from networking remote state (subnet_cidrs / subnetwork_cidrs) after applying the networking layer.
 # Addressing: use private_ip, or private_ip_host_index with cidrhost(subnet_cidr, index) (e.g. index 10 => x.x.x.10 in a /24).
 # Optional local_exec.command: local-exec provisioner after the instance exists (AWS: after Elastic IP association when
 # external_static_ip_key is set). Use templatestring placeholders public_ip, nat_ip, private_ip, name, region, instance_id
-# (GCP also zone). In this file, write $${public_ip} not ${public_ip} so HCL keeps the placeholder for templatestring.
+# (GCP also zone, instance_region, cloud_nat, cloud_nat_enabled, cloud_nat_lookup_key, cloud_nat_for_instance). In this file,
+# write $${public_ip} not ${public_ip} so HCL keeps the placeholder for templatestring.
 # Optional os: AWS — amazon-linux-2023 (default) or ubuntu-server-lts (Ubuntu Server 24.04 LTS); optional ami_id overrides.
 # GCP — debian-12 (default) or ubuntu-server-lts; optional boot_disk_image overrides.
 # Optional external_static_ip_key: must match a key from the networking layer external_static_ips block
@@ -90,16 +98,33 @@ computes = {
   gcp = {
     enabled = true
     instances = {
-      example-app = {
+      # Private DB / services: no external_static_ip_key — outbound internet uses Cloud NAT from the networking layer.
+      # vpc_name must match the VPC key in layers/networking network_topology (same string used in cloud_nat map keys).
+      example-db-private = {
         subnet_key            = "primary-database-db-subnet"
         vpc_name              = "primary"
         network_name          = "primary"
-        private_ip_host_index = 10 # 10.10.10.10 when subnet is 10.10.10.0/24 (from networking state)
-        external_static_ip_key = "api-ingress" # same key as external_static_ips.gcp.projects["example-project-id"].regional_external_addresses in networking
+        private_ip_host_index = 11
         os                    = "ubuntu-server-lts"
         machine_type          = "e2-medium"
         zone                  = "us-central1-a"
         boot_disk_size_gb     = 20
+        labels = {
+          role        = "database"
+          environment = "prod"
+        }
+      }
+
+      example-app = {
+        subnet_key             = "primary-database-db-subnet"
+        vpc_name               = "primary"
+        network_name           = "primary"
+        private_ip_host_index  = 10 # 10.10.10.10 when subnet is 10.10.10.0/24 (from networking state)
+        external_static_ip_key = "api-ingress" # same key as external_static_ips.gcp.projects["example-project-id"].regional_external_addresses in networking
+        os                     = "ubuntu-server-lts"
+        machine_type           = "e2-medium"
+        zone                   = "us-central1-a"
+        boot_disk_size_gb      = 20
         labels = {
           role        = "app"
           environment = "prod"

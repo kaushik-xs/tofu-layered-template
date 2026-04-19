@@ -12,4 +12,13 @@ module "gcp_compute" {
     data.terraform_remote_state.networking[0].outputs.gcp_external_static_ips.regional_addresses,
     {}
   )
+
+  cloud_nat = try(
+    data.terraform_remote_state.networking[0].outputs.gcp_networking.cloud_nat,
+    {}
+  )
+  cloud_nat_enabled = try(
+    data.terraform_remote_state.networking[0].outputs.gcp_networking.cloud_nat_enabled,
+    false
+  )
 }
