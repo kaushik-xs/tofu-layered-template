@@ -12,6 +12,50 @@ aws_region     = "us-east-1"
 gcp_project_id = "example-project-id"
 gcp_region     = "us-central1"
 
+# Optional: SQS queues. Queues are created in aws_region. FIFO queue names must end with .fifo.
+# dlq_enabled = true creates a companion dead-letter queue (<name>-dlq) and wires the redrive policy automatically.
+# receive_wait_time_seconds > 0 enables long polling (max 20 s). Omit or use {} for none.
+# sqs_queues = {
+#   app-events = {
+#     name                       = "myorg-app-events-prod"
+#     visibility_timeout_seconds = 30
+#     message_retention_seconds  = 345600  # 4 days (default)
+#     receive_wait_time_seconds  = 10      # long polling
+#     dlq_enabled                = true
+#     dlq_max_receive_count      = 3
+#     tags = {
+#       purpose     = "events"
+#       environment = "prod"
+#     }
+#   }
+#   background-jobs = {
+#     name                       = "myorg-background-jobs-prod"
+#     visibility_timeout_seconds = 120     # allow up to 2 min processing
+#     message_retention_seconds  = 604800  # 7 days
+#     max_message_size           = 262144  # 256 KB (default)
+#     delay_seconds              = 5
+#     receive_wait_time_seconds  = 10
+#     dlq_enabled                = true
+#     dlq_max_receive_count      = 5
+#     tags = {
+#       purpose     = "jobs"
+#       environment = "prod"
+#     }
+#   }
+#   ordered-events = {
+#     name                       = "myorg-ordered-events-prod.fifo"  # .fifo suffix required for FIFO queues
+#     fifo_queue                 = true
+#     visibility_timeout_seconds = 30
+#     message_retention_seconds  = 345600
+#     receive_wait_time_seconds  = 10
+#     dlq_enabled                = false
+#     tags = {
+#       purpose     = "fifo"
+#       environment = "prod"
+#     }
+#   }
+# }
+
 # Optional: multiple application S3 buckets (global unique bucket names). Omit or use {} for none.
 # s3_buckets = {
 #   app-uploads = {

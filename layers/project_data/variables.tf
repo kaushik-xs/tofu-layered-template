@@ -85,6 +85,29 @@ variable "s3_buckets" {
   default = {}
 }
 
+variable "sqs_queues" {
+  description = <<-EOT
+    Map of logical name => SQS queue configuration. Queues are created in aws_region via the AWS provider.
+    Set fifo_queue = true for FIFO queues — name must end with .fifo. When dlq_enabled = true, a companion
+    dead-letter queue is created (named <name>-dlq or <name>-dlq.fifo) and wired as the redrive target.
+    dlq_max_receive_count controls how many receive attempts before a message is moved to the DLQ.
+    receive_wait_time_seconds > 0 enables long polling (up to 20 s). Leave sqs_queues empty to create no queues.
+  EOT
+  type = map(object({
+    name                       = string
+    fifo_queue                 = optional(bool, false)
+    visibility_timeout_seconds = optional(number, 30)
+    message_retention_seconds  = optional(number, 345600)
+    max_message_size           = optional(number, 262144)
+    delay_seconds              = optional(number, 0)
+    receive_wait_time_seconds  = optional(number, 0)
+    dlq_enabled                = optional(bool, false)
+    dlq_max_receive_count      = optional(number, 3)
+    tags                       = optional(map(string), {})
+  }))
+  default = {}
+}
+
 variable "computes" {
   description = <<-EOT
     Declarative VM layout for AWS and GCP. Subnet and network identifiers resolve from networking remote state

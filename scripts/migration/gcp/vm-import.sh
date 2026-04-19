@@ -14,7 +14,7 @@
 #
 # Import modes:
 #   all    — point at the local dump directory produced by cloudsql-export.sh;
-#            DB name is inferred from each filename (epiic-events.sql.gz → 'epiic-events').
+#            DB name is inferred from each filename (file1.sql.gz → 'file1').
 #            Credentials are prompted once and applied to every database.
 #   single — point at one local .sql.gz file; DB name entered manually.
 #
