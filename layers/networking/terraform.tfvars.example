@@ -18,6 +18,18 @@ gcp_region     = "us-central1"
 # Optional: default for Cloud NAT when network_topology.gcp.enable_cloud_nat is not set (default true).
 # gcp_enable_cloud_nat = false
 
+# Optional: CIDRs allowed to reach DB ports (gcp_db_ingress_ports) on VMs tagged with gcp_db_target_tags.
+# Typically the public-subnet CIDR(s) where app VMs live. Empty = no rule created.
+# gcp_db_ingress_source_ranges = ["10.10.1.0/24"]
+
+# Optional: TCP ports opened by the db ingress rule. Extend for additional engines (e.g. MySQL 3306, pgBouncer 6432).
+# Only evaluated when gcp_db_ingress_source_ranges is non-empty (default: ["5432"]).
+# gcp_db_ingress_ports = ["5432"]
+
+# Optional: network tags on DB VMs that receive the db ingress rule (default: ["db"]).
+# Must match the tags set on instances in project_data computes.gcp.instances.<name>.tags.
+# gcp_db_target_tags = ["db"]
+
 # Optional: declarative VPC layout. This layer applies the entry for `aws_region` under
 # `network_topology.aws.regions` and the entry for `gcp_project_id` under
 # `network_topology.gcp.projects` (OpenTofu cannot use one module per region/project with
@@ -66,6 +78,12 @@ network_topology = {
     # ssh_ingress_source_ranges = ["0.0.0.0/0"]
     # Optional: set false to skip Cloud Router + Cloud NAT (private VMs then need another egress path). If omitted, uses gcp_enable_cloud_nat at top (default true).
     # enable_cloud_nat = false
+    # Optional: CIDRs allowed to reach db_ingress_ports on VMs tagged with db_target_tags. Overrides gcp_db_ingress_source_ranges at top.
+    # db_ingress_source_ranges = ["10.10.1.0/24"]
+    # Optional: TCP ports opened by the db ingress rule. Overrides gcp_db_ingress_ports at top (default ["5432"]).
+    # db_ingress_ports = ["5432"]
+    # Optional: network tags that identify DB VMs for the db ingress rule. Overrides gcp_db_target_tags at top (default ["db"]).
+    # db_target_tags = ["db"]
     projects = {
       example-project-id = {
         region = "us-central1"
@@ -73,6 +91,15 @@ network_topology = {
           primary = {
             routing_mode = "GLOBAL"
             subnets = {
+              # Public subnet — app VMs with external IPs live here; its CIDR is the db_ingress_source_ranges value.
+              public = [
+                {
+                  name       = "app-subnet"
+                  cidr_block = "10.10.1.0/24"
+                  region     = "us-central1"
+                }
+              ]
+              # Private subnet — DB VMs live here; no external IPs, egress via Cloud NAT.
               database = [
                 {
                   name           = "db-subnet"

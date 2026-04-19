@@ -26,6 +26,8 @@ variable "instances" {
     ansible_user (ubuntu for ubuntu-server-lts, debian for debian-12; override with ansible_user on the instance). Optional
     local_exec.template_vars merges extra name => value pairs into the template map. In .tfvars, escape brace placeholders
     for templatestring (dollar-dollar before the opening brace).
+    Optional tags: list of GCP network tags (strings) applied to the instance — used to scope firewall rules
+    (e.g. ["db"] to receive the db_ingress firewall rule from the networking layer).
     Optional external_static_ip_key: logical name of a regional reserved address from networking
     (gcp_external_static_ips.regional_addresses); sets access_config.nat_ip to that IPv4 (API requires the address string, not a resource URL).
     When local_exec is set, templatestring also receives instance_region, cloud_nat, cloud_nat_enabled, cloud_nat_lookup_key,

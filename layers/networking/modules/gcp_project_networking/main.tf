@@ -96,6 +96,28 @@ resource "google_compute_firewall" "ssh_ingress" {
   }
 }
 
+# Allow database traffic from the app (public) subnet to DB VMs in the private subnet.
+# Scoped to VMs carrying db_target_tags so the rule does not apply network-wide.
+resource "google_compute_firewall" "db_ingress" {
+  for_each = length(var.db_ingress_source_ranges) > 0 ? var.vpcs : {}
+
+  name    = "${each.key}-allow-db-ingress"
+  network = google_compute_network.this[each.key].name
+
+  description = "Allow TCP ${join(", ", var.db_ingress_ports)} from ${join(", ", var.db_ingress_source_ranges)} to VMs tagged: ${join(", ", var.db_target_tags)}."
+
+  direction = "INGRESS"
+  priority  = 1000
+
+  source_ranges = var.db_ingress_source_ranges
+  target_tags   = var.db_target_tags
+
+  allow {
+    protocol = "tcp"
+    ports    = var.db_ingress_ports
+  }
+}
+
 resource "google_compute_router" "nat" {
   for_each = var.enable_cloud_nat ? local.router_nat_instances : {}
 

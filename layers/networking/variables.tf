@@ -60,6 +60,34 @@ variable "gcp_enable_cloud_nat" {
   default     = true
 }
 
+variable "gcp_db_ingress_source_ranges" {
+  description = <<-EOT
+    Default when network_topology.gcp.db_ingress_source_ranges is omitted: CIDRs allowed to reach
+    gcp_db_ingress_ports on VMs tagged with gcp_db_target_tags. Typically the public-subnet CIDR(s)
+    hosting app VMs. Empty means no db ingress rule is created.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+variable "gcp_db_ingress_ports" {
+  description = <<-EOT
+    Default when network_topology.gcp.db_ingress_ports is omitted: TCP ports opened by the db ingress rule.
+    Only used when gcp_db_ingress_source_ranges is non-empty.
+  EOT
+  type        = list(string)
+  default     = ["5432"]
+}
+
+variable "gcp_db_target_tags" {
+  description = <<-EOT
+    Default when network_topology.gcp.db_target_tags is omitted: network tags that identify DB VMs
+    for the db ingress rule. Only used when gcp_db_ingress_source_ranges is non-empty.
+  EOT
+  type        = list(string)
+  default     = ["db"]
+}
+
 variable "network_topology" {
   description = <<-EOT
     Abstract multi-cloud network layout. When aws.enabled or gcp.enabled is true, the corresponding

@@ -50,6 +50,8 @@ resource "google_compute_instance" "this" {
     }
   }
 
+  tags = try(each.value.tags, [])
+
   metadata = merge(
     try(each.value.vpc_name, null) != null ? { vpc = each.value.vpc_name } : {},
     try(each.value.network_name, null) != null ? { network = each.value.network_name } : {},

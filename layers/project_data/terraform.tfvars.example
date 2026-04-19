@@ -153,6 +153,9 @@ computes = {
         machine_type          = "e2-medium"
         zone                  = "us-central1-a"
         boot_disk_size_gb     = 20
+        # tags: GCP network tags — must match db_target_tags in the networking layer (default ["db"]).
+        # Required for the db_ingress firewall rule to reach this VM from the app subnet.
+        tags = ["db"]
         labels = {
           role        = "database"
           environment = "prod"
