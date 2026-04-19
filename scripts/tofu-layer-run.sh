@@ -292,7 +292,7 @@ cd "${LAYER_DIR}"
 # Isolate local OpenTofu data per AWS profile and workspace.
 export TF_DATA_DIR="${TF_DATA_DIR:-${PWD}/.terraform/terraform_${AWS_PROFILE}_${WORKSPACE_NAME}}"
 
-# project builds global_identity remote state keys as terraform_<AWS_PROFILE>.tfstate; pass profile into OpenTofu.
+# project builds remote state keys as terraform_<AWS_PROFILE>.tfstate; pass profile into OpenTofu.
 if [[ "${LAYER_NAME}" == "project" ]]; then
   export TF_VAR_aws_profile="${AWS_PROFILE}"
 fi

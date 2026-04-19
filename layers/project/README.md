@@ -1,6 +1,6 @@
 # project
 
-This layer hosts project runtime resources and services.
+This layer hosts project runtime resources and services: **compute** (`computes`) and optional **Route53** records.
 
 ## Route53
 

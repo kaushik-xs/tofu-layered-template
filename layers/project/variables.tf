@@ -76,12 +76,12 @@ variable "networking_workspace" {
 }
 
 variable "networking_tf_state_key" {
-  description = "tf_state_key from networking's terraform.<profile>.<workspace>.tfvars (prefix before /terraform_<AWS_PROFILE>.tfstate). Required when compute_topology.aws.enabled or compute_topology.gcp.enabled is true."
+  description = "tf_state_key from networking's terraform.<profile>.<workspace>.tfvars (prefix before /terraform_<AWS_PROFILE>.tfstate). Required when computes.aws.enabled or computes.gcp.enabled is true."
   type        = string
   default     = ""
 }
 
-variable "compute_topology" {
+variable "computes" {
   description = <<-EOT
     Declarative VM layout for AWS and GCP. Subnet and network identifiers resolve from networking remote state
     (networking_tf_state_key). Each instance sets subnet_key to match networking outputs: aws_networking.subnet_ids

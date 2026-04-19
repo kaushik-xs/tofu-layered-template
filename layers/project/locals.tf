@@ -9,13 +9,13 @@ locals {
     )
   )
 
-  aws_compute_instances  = try(var.compute_topology.aws.instances, {})
-  gcp_compute_instances  = try(var.compute_topology.gcp.instances, {})
-  compute_any_enabled    = try(var.compute_topology.aws.enabled, false) || try(var.compute_topology.gcp.enabled, false)
+  aws_compute_instances  = try(var.computes.aws.instances, {})
+  gcp_compute_instances  = try(var.computes.gcp.instances, {})
+  compute_any_enabled    = try(var.computes.aws.enabled, false) || try(var.computes.gcp.enabled, false)
   networking_state_count = trimspace(var.networking_tf_state_key) != "" && local.compute_any_enabled ? 1 : 0
 
   aws_compute_enabled = (
-    try(var.compute_topology.aws.enabled, false) &&
+    try(var.computes.aws.enabled, false) &&
     (
       length(data.terraform_remote_state.networking) == 0 ? false :
       try(data.terraform_remote_state.networking[0].outputs.aws_networking, null) != null
@@ -23,7 +23,7 @@ locals {
   )
 
   gcp_compute_enabled = (
-    try(var.compute_topology.gcp.enabled, false) &&
+    try(var.computes.gcp.enabled, false) &&
     (
       length(data.terraform_remote_state.networking) == 0 ? false :
       try(data.terraform_remote_state.networking[0].outputs.gcp_networking, null) != null
@@ -37,7 +37,7 @@ check "networking_tf_state_when_compute_enabled" {
       !local.compute_any_enabled ||
       trimspace(var.networking_tf_state_key) != ""
     )
-    error_message = "When compute_topology.aws.enabled or compute_topology.gcp.enabled is true, networking_tf_state_key must be set (same tf_state_key prefix as the networking layer, before /terraform_<AWS_PROFILE>.tfstate)."
+    error_message = "When computes.aws.enabled or computes.gcp.enabled is true, networking_tf_state_key must be set (same tf_state_key prefix as the networking layer, before /terraform_<AWS_PROFILE>.tfstate)."
   }
 }
 
@@ -54,28 +54,28 @@ check "networking_remote_state_loaded_when_compute_enabled" {
 check "aws_networking_when_aws_compute" {
   assert {
     condition = (
-      !try(var.compute_topology.aws.enabled, false) ||
+      !try(var.computes.aws.enabled, false) ||
       length(local.aws_compute_instances) == 0 ||
       (
         length(data.terraform_remote_state.networking) > 0 &&
         try(data.terraform_remote_state.networking[0].outputs.aws_networking, null) != null
       )
     )
-    error_message = "compute_topology.aws has instances but networking remote state has no aws_networking output. Enable AWS in the networking layer for this region or disable AWS compute."
+    error_message = "computes.aws has instances but networking remote state has no aws_networking output. Enable AWS in the networking layer for this region or disable AWS compute."
   }
 }
 
 check "gcp_networking_when_gcp_compute" {
   assert {
     condition = (
-      !try(var.compute_topology.gcp.enabled, false) ||
+      !try(var.computes.gcp.enabled, false) ||
       length(local.gcp_compute_instances) == 0 ||
       (
         length(data.terraform_remote_state.networking) > 0 &&
         try(data.terraform_remote_state.networking[0].outputs.gcp_networking, null) != null
       )
     )
-    error_message = "compute_topology.gcp has instances but networking remote state has no gcp_networking output. Enable GCP in the networking layer for this project or disable GCP compute."
+    error_message = "computes.gcp has instances but networking remote state has no gcp_networking output. Enable GCP in the networking layer for this project or disable GCP compute."
   }
 }
 
@@ -138,7 +138,7 @@ check "gcp_subnetwork_cidr_when_private_ip_host_index" {
 check "aws_external_static_ip_key_in_networking" {
   assert {
     condition = (
-      !try(var.compute_topology.aws.enabled, false) ? true : alltrue([
+      !try(var.computes.aws.enabled, false) ? true : alltrue([
         for _, inst in local.aws_compute_instances : (
           try(inst.external_static_ip_key, null) == null ||
           trimspace(tostring(try(inst.external_static_ip_key, ""))) == "" ||
@@ -158,7 +158,7 @@ check "aws_external_static_ip_key_in_networking" {
 check "gcp_external_static_ip_key_in_networking" {
   assert {
     condition = (
-      !try(var.compute_topology.gcp.enabled, false) ? true : alltrue([
+      !try(var.computes.gcp.enabled, false) ? true : alltrue([
         for _, inst in local.gcp_compute_instances : (
           try(inst.external_static_ip_key, null) == null ||
           trimspace(tostring(try(inst.external_static_ip_key, ""))) == "" ||

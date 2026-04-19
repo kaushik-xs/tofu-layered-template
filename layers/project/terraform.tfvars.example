@@ -16,7 +16,7 @@ gcp_region     = "us-central1"
 # gcp_compute_ssh_public_key_path = "~/.ssh/id_rsa.pub"
 
 # Networking layer remote state (same bucket layout as scripts/tofu-layer-run.sh). This layer reads subnet and network
-# ids from networking outputs when compute_topology.aws.enabled or compute_topology.gcp.enabled is true. Use the same
+# ids from networking outputs when computes.aws.enabled or computes.gcp.enabled is true. Use the same
 # tf_state_key prefix as the networking layer. Leave networking_workspace empty to use terraform.workspace so project
 # and networking share the same workspace name (e.g. qa).
 networking_tf_state_key = "opentofu/networking"
@@ -35,7 +35,7 @@ networking_tf_state_key = "opentofu/networking"
 # (aws: elastic_ips name => aws_external_static_ips.allocation_ids; gcp: regional_external_addresses name => reserved IPv4 in regional_addresses).
 # The examples below align with network_topology and external_static_ips in layers/networking/terraform.tfvars.example.
 # Set enabled = false if you are not ready to manage instances yet.
-compute_topology = {
+computes = {
   aws = {
     enabled = true
     instances = {

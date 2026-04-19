@@ -56,6 +56,6 @@ data "terraform_remote_state" "networking" {
 }
 
 output "networking_outputs" {
-  description = "Root module outputs from networking (remote state), when compute_topology enables AWS or GCP and networking_tf_state_key is set."
+  description = "Root module outputs from networking (remote state), when computes enables AWS or GCP and networking_tf_state_key is set."
   value       = length(data.terraform_remote_state.networking) > 0 ? data.terraform_remote_state.networking[0].outputs : null
 }
