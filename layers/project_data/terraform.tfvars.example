@@ -113,6 +113,23 @@ computes = {
           role        = "database"
           environment = "prod"
         }
+        # Private IP only: use IAP + gcloud in ansible_ssh_common_args; template_vars.gcp_project_id must match this file’s gcp_project_id.
+        # local_exec = {
+        #   template_vars = {
+        #     gcp_project_id = "example-project-id"
+        #   }
+        #   command = <<-EOT
+        #     cd ../../playbooks && \
+        #     OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES OS_ACTIVITY_MODE=disable \
+        #     sleep 30 && \
+        #     ansible-playbook db.yml \
+        #       -i '$${name},' \
+        #       -e 'ansible_ssh_common_args=-o ControlMaster=no -o ControlPersist=no -o ServerAliveInterval=30 -o ProxyCommand="gcloud compute ssh %h --zone=$${zone} --project=$${gcp_project_id} --tunnel-through-iap --quiet -- -W %h:%p"' \
+        #       -e ansible_user=$${ansible_user} \
+        #       -e ansible_ssh_private_key_file=$$HOME/.ssh/google_compute_engine \
+        #       -f 1
+        #   EOT
+        # }
       }
 
       example-app = {

@@ -81,6 +81,8 @@ resource "null_resource" "instance_local_exec" {
   }
 
   provisioner "local-exec" {
+    # Login shell so PATH includes Homebrew, pyenv, pip --user, etc. Default /bin/sh often lacks ansible-playbook.
+    interpreter = ["/bin/bash", "-lc"]
     # Run from the layer root (e.g. layers/project_data) so paths like ../../playbooks match terraform.tfvars examples.
     working_dir = path.root
 
