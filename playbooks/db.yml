@@ -1,0 +1,23 @@
+---
+# Targets inventory hosts (use default inventory for localhost, or -i '<ip>,' from Terraform local_exec).
+- name: Setup Ubuntu with required software
+  hosts: all
+  become: true
+
+  roles:
+    - network-utils
+    - utilities
+    # - opentofu
+    # - vlc
+    # - kdeconnect
+    # - xfce4-terminal
+    - awscli
+    - rclone
+    - ghcli
+    - zerotier
+    - fonts
+    - docker
+    - caddy
+    # - mongodb-tools
+    - shell
+    - ufw

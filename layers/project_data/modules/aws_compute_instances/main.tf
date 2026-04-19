@@ -116,6 +116,9 @@ resource "null_resource" "instance_local_exec" {
   }
 
   provisioner "local-exec" {
+    # Run from the layer root so paths like ../../playbooks match terraform.tfvars examples.
+    working_dir = path.root
+
     command = templatestring(each.value.local_exec.command, merge(
       try(each.value.local_exec.template_vars, {}),
       {
