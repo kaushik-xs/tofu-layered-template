@@ -8,9 +8,6 @@
     - network-utils
     - utilities
     # - opentofu
-    # - vlc
-    # - kdeconnect
-    # - xfce4-terminal
     - awscli
     - rclone
     - ghcli
