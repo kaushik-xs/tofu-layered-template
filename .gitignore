@@ -18,3 +18,5 @@
 **/*.tfplan
 **/crash.log
 **/crash.*.log
+
+docker-images/*
