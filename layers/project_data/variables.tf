@@ -70,6 +70,21 @@ variable "networking_tf_state_key" {
   default     = ""
 }
 
+variable "s3_buckets" {
+  description = <<-EOT
+    Map of logical name => S3 bucket configuration. Each key creates one aws_s3_bucket; logical keys are stable
+    Terraform map keys (e.g. app-uploads, logs). The bucket attribute is the global AWS bucket name. Leave empty or
+    omit to create no application buckets (state bucket tf_state_bucket is separate).
+  EOT
+  type = map(object({
+    bucket             = string
+    force_destroy      = optional(bool, false)
+    versioning_enabled = optional(bool, false)
+    tags               = optional(map(string), {})
+  }))
+  default = {}
+}
+
 variable "computes" {
   description = <<-EOT
     Declarative VM layout for AWS and GCP. Subnet and network identifiers resolve from networking remote state

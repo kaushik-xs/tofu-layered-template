@@ -12,6 +12,21 @@ aws_region     = "us-east-1"
 gcp_project_id = "example-project-id"
 gcp_region     = "us-central1"
 
+# Optional: multiple application S3 buckets (global unique bucket names). Omit or use {} for none.
+# s3_buckets = {
+#   app-uploads = {
+#     bucket             = "myorg-app-uploads-prod-us-east-1"
+#     versioning_enabled = true
+#     tags = {
+#       purpose = "uploads"
+#     }
+#   }
+#   logs = {
+#     bucket        = "myorg-access-logs-prod-us-east-1"
+#     force_destroy = false
+#   }
+# }
+
 # Optional: GCP only — path to SSH public key; merged into each VM metadata so ansible/ssh can use the matching private key.
 # gcp_compute_ssh_public_key_path = "~/.ssh/id_rsa.pub"
 
