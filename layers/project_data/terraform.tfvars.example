@@ -1,0 +1,101 @@
+# Save as terraform.<AWS_PROFILE>.<workspace>.tfvars — e.g. terraform.rg2k.dev.tfvars
+# aws_profile is not set here: scripts/tofu-layer-run.sh exports TF_VAR_aws_profile=$AWS_PROFILE for project_data.
+tf_state_bucket  = "your-tf-state-bucket"
+tf_state_key     = "opentofu/project_data"
+tf_state_region  = "us-east-1"
+tf_state_encrypt = true
+
+global_identity_workspace    = "global"
+global_identity_tf_state_key = "global_identity/secrets"
+
+aws_region     = "us-east-1"
+gcp_project_id = "example-project-id"
+gcp_region     = "us-central1"
+
+# Optional: GCP only — path to SSH public key; merged into each VM metadata so ansible/ssh can use the matching private key.
+# gcp_compute_ssh_public_key_path = "~/.ssh/id_rsa.pub"
+
+# Networking layer remote state (same bucket layout as scripts/tofu-layer-run.sh). This layer reads subnet and network
+# ids from networking outputs when computes.aws.enabled or computes.gcp.enabled is true. Use the same
+# tf_state_key prefix as the networking layer. Leave networking_workspace empty to use terraform.workspace so project_data
+# and networking share the same workspace name (e.g. qa).
+networking_tf_state_key = "opentofu/networking"
+# networking_workspace    = "qa"
+
+# Optional: declarative VMs. Subnet keys must match networking outputs for this region/project:
+# aws_networking.subnet_ids / gcp_networking.subnetwork_ids (flattened keys: "<vpc>-<tier>-<subnet_name>").
+# CIDRs come from networking remote state (subnet_cidrs / subnetwork_cidrs) after applying the networking layer.
+# Addressing: use private_ip, or private_ip_host_index with cidrhost(subnet_cidr, index) (e.g. index 10 => x.x.x.10 in a /24).
+# Optional local_exec.command: local-exec provisioner after the instance exists (AWS: after Elastic IP association when
+# external_static_ip_key is set). Use templatestring placeholders public_ip, nat_ip, private_ip, name, region, instance_id
+# (GCP also zone). In this file, write $${public_ip} not ${public_ip} so HCL keeps the placeholder for templatestring.
+# Optional os: AWS — amazon-linux-2023 (default) or ubuntu-server-lts (Ubuntu Server 24.04 LTS); optional ami_id overrides.
+# GCP — debian-12 (default) or ubuntu-server-lts; optional boot_disk_image overrides.
+# Optional external_static_ip_key: must match a key from the networking layer external_static_ips block
+# (aws: elastic_ips name => aws_external_static_ips.allocation_ids; gcp: regional_external_addresses name => reserved IPv4 in regional_addresses).
+# The examples below align with network_topology and external_static_ips in layers/networking/terraform.tfvars.example.
+# Set enabled = false if you are not ready to manage instances yet.
+computes = {
+  aws = {
+    enabled = true
+    instances = {
+      example-web = {
+        subnet_key             = "core-public-public-a"
+        vpc_name               = "core"
+        network_name           = "core"
+        private_ip_host_index  = 10 # 10.0.1.10 when subnet is 10.0.1.0/24 (from networking state)
+        external_static_ip_key = "nat-egress" # same key as external_static_ips.aws.regions["us-east-1"].elastic_ips in networking
+        os                     = "ubuntu-server-lts"
+        instance_type          = "t3.micro"
+        tags = {
+          role        = "web"
+          environment = "prod"
+        }
+        # local_exec = {
+        #   command = <<-EOT
+        #     sleep 30;
+        #     ansible-playbook -u $${ansible_user} -i '$${public_ip},' --private-key ~/.ssh/id_rsa -e "pub_ip=$${public_ip}" deployment.yml
+        #   EOT
+        # }
+      }
+      example-db = {
+        subnet_key    = "core-database-db-a"
+        vpc_name      = "core"
+        network_name  = "core"
+        private_ip    = "10.0.10.10" # or private_ip_host_index = 10 on 10.0.10.0/24
+        instance_type = "t3.small"
+        tags = {
+          role        = "database"
+          environment = "prod"
+        }
+      }
+    }
+  }
+
+  gcp = {
+    enabled = true
+    instances = {
+      example-app = {
+        subnet_key            = "primary-database-db-subnet"
+        vpc_name              = "primary"
+        network_name          = "primary"
+        private_ip_host_index = 10 # 10.10.10.10 when subnet is 10.10.10.0/24 (from networking state)
+        external_static_ip_key = "api-ingress" # same key as external_static_ips.gcp.projects["example-project-id"].regional_external_addresses in networking
+        os                    = "ubuntu-server-lts"
+        machine_type          = "e2-medium"
+        zone                  = "us-central1-a"
+        boot_disk_size_gb     = 20
+        labels = {
+          role        = "app"
+          environment = "prod"
+        }
+        # local_exec = {
+        #   command = <<-EOT
+        #     sleep 30;
+        #     ansible-playbook -u $${ansible_user} -i '$${public_ip},' --private-key ~/.ssh/id_rsa -e "pub_ip=$${public_ip}" deployment.yml
+        #   EOT
+        # }
+      }
+    }
+  }
+}

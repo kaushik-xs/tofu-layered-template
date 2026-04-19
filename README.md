@@ -1,12 +1,13 @@
 # Layered OpenTofu Architecture
 
-This repository defines five independent OpenTofu layers:
+This repository defines six independent OpenTofu layers:
 
 1. `global_identity`
 2. `networking`
 3. `platform_data`
 4. `platform`
-5. `project`
+5. `project_data`
+6. `project`
 
 Each layer is a standalone OpenTofu project; `scripts/tofu-layer-run.sh` uses `terraform.<profile>.<workspace>.tfvars` and selects or creates the OpenTofu workspace named `<workspace>` (the same value as the second argument).
 
