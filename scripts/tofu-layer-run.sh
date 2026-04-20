@@ -27,7 +27,7 @@
 # Required args:
 #   <layer_name>   Directory name under layers/ (e.g. global_identity, project)
 #   <workspace>    Same name for terraform.<profile>.<workspace>.tfvars and OpenTofu workspace
-#   <action>       One of "plan", "apply", or "destroy"
+#   <action>       One of "plan", "apply", "destroy", or "output" (output emits JSON; no confirmation required)
 #
 # Optional env:
 #   TF_STATE_DYNAMODB_TABLE=<table>     Enable state locking with DynamoDB (backend-config)
@@ -132,8 +132,8 @@ if [[ "${ACTUAL_TOFU_VERSION}" != "${EXPECTED_TOFU_VERSION}" ]]; then
   exit 1
 fi
 
-if [[ "${ACTION}" != "plan" && "${ACTION}" != "apply" && "${ACTION}" != "destroy" ]]; then
-  echo "Action must be 'plan', 'apply', or 'destroy'."
+if [[ "${ACTION}" != "plan" && "${ACTION}" != "apply" && "${ACTION}" != "destroy" && "${ACTION}" != "output" ]]; then
+  echo "Action must be 'plan', 'apply', 'destroy', or 'output'."
   exit 1
 fi
 
@@ -180,8 +180,10 @@ _tofu_layer_run_print_summary() {
     _mode="📋  Plan — preview only · no writes"
   elif [[ "${ACTION}" == "apply" ]]; then
     _mode="🚀  Apply — will modify live infrastructure"
-  else
+  elif [[ "${ACTION}" == "destroy" ]]; then
     _mode="💥  Destroy — will delete managed infrastructure"
+  else
+    _mode="📤  Output — read-only · prints outputs as JSON"
   fi
 
   local _action_row
@@ -189,8 +191,10 @@ _tofu_layer_run_print_summary() {
     _action_row="$(printf '%s %-*s %s' "📋" "${_lw}" "Action" "plan")"
   elif [[ "${ACTION}" == "apply" ]]; then
     _action_row="$(printf '%s %-*s %s' "🚀" "${_lw}" "Action" "apply")"
-  else
+  elif [[ "${ACTION}" == "destroy" ]]; then
     _action_row="$(printf '%s %-*s %s' "💥" "${_lw}" "Action" "destroy")"
+  else
+    _action_row="$(printf '%s %-*s %s' "📤" "${_lw}" "Action" "output (JSON)")"
   fi
 
   local -a _rows=(
@@ -231,8 +235,10 @@ _tofu_layer_run_print_summary() {
     printf '%s│  %s%s%s%s│%s\n' "${_bar}" "${_plan_c}" "${_pad}" "${_r}" "${_bar}" "${_r}"
   elif [[ "${ACTION}" == "apply" ]]; then
     printf '%s│  %s%s%s%s│%s\n' "${_bar}" "${_apply_c}" "${_pad}" "${_r}" "${_bar}" "${_r}"
-  else
+  elif [[ "${ACTION}" == "destroy" ]]; then
     printf '%s│  %s%s%s%s│%s\n' "${_bar}" "${_destroy_c}" "${_pad}" "${_r}" "${_bar}" "${_r}"
+  else
+    printf '%s│  %s%s%s%s│%s\n' "${_bar}" "${_plan_c}" "${_pad}" "${_r}" "${_bar}" "${_r}"
   fi
 
   printf '%s├%s┤%s\n' "${_bar}" "${_rule}" "${_r}"
@@ -249,42 +255,44 @@ _tofu_layer_run_print_summary() {
 
 _tofu_layer_run_print_summary
 
-if [[ "${ACTION}" == "plan" ]]; then
-  read -r -p "📋 Continue with plan? [y/N] " _tofu_layer_run_confirm
-elif [[ "${ACTION}" == "apply" ]]; then
-  read -r -p "🚀 Proceed with apply? [y/N] " _tofu_layer_run_confirm
-else
-  read -r -p "💥 Proceed with destroy? [y/N] " _tofu_layer_run_confirm
-fi
-case "${_tofu_layer_run_confirm}" in
-  [yY]|[yY][eE][sS]) ;;
-  *)
-    echo "Aborted."
-    exit 1
-    ;;
-esac
-
-if [[ "${ACTION}" == "plan" ]]; then
-  read -r -p "📋 Second confirmation: run plan now? [y/N] " _tofu_layer_run_confirm2
-elif [[ "${ACTION}" == "apply" ]]; then
-  read -r -p "🚀 Second confirmation: apply will modify live infrastructure. Continue? [y/N] " _tofu_layer_run_confirm2
-else
-  read -r -p "💥 Second confirmation: type the layer name '${LAYER_NAME}' exactly to destroy: " _tofu_layer_run_confirm2
-fi
-
-if [[ "${ACTION}" == "destroy" ]]; then
-  if [[ "${_tofu_layer_run_confirm2}" != "${LAYER_NAME}" ]]; then
-    echo "Layer name did not match. Aborted."
-    exit 1
+if [[ "${ACTION}" != "output" ]]; then
+  if [[ "${ACTION}" == "plan" ]]; then
+    read -r -p "📋 Continue with plan? [y/N] " _tofu_layer_run_confirm
+  elif [[ "${ACTION}" == "apply" ]]; then
+    read -r -p "🚀 Proceed with apply? [y/N] " _tofu_layer_run_confirm
+  else
+    read -r -p "💥 Proceed with destroy? [y/N] " _tofu_layer_run_confirm
   fi
-else
-  case "${_tofu_layer_run_confirm2}" in
+  case "${_tofu_layer_run_confirm}" in
     [yY]|[yY][eE][sS]) ;;
     *)
       echo "Aborted."
       exit 1
       ;;
   esac
+
+  if [[ "${ACTION}" == "plan" ]]; then
+    read -r -p "📋 Second confirmation: run plan now? [y/N] " _tofu_layer_run_confirm2
+  elif [[ "${ACTION}" == "apply" ]]; then
+    read -r -p "🚀 Second confirmation: apply will modify live infrastructure. Continue? [y/N] " _tofu_layer_run_confirm2
+  else
+    read -r -p "💥 Second confirmation: type the layer name '${LAYER_NAME}' exactly to destroy: " _tofu_layer_run_confirm2
+  fi
+
+  if [[ "${ACTION}" == "destroy" ]]; then
+    if [[ "${_tofu_layer_run_confirm2}" != "${LAYER_NAME}" ]]; then
+      echo "Layer name did not match. Aborted."
+      exit 1
+    fi
+  else
+    case "${_tofu_layer_run_confirm2}" in
+      [yY]|[yY][eE][sS]) ;;
+      *)
+        echo "Aborted."
+        exit 1
+        ;;
+    esac
+  fi
 fi
 
 cd "${LAYER_DIR}"
@@ -350,9 +358,12 @@ if [[ "${ACTION}" == "plan" ]]; then
 elif [[ "${ACTION}" == "apply" ]]; then
   _tofu_layer_run_print_tofu_cmd tofu apply -auto-approve "${TOFU_VARFILE_ARGS[@]}"
   tofu apply -auto-approve "${TOFU_VARFILE_ARGS[@]}"
-else
+elif [[ "${ACTION}" == "destroy" ]]; then
   _tofu_layer_run_print_tofu_cmd tofu destroy -auto-approve "${TOFU_VARFILE_ARGS[@]}"
   tofu destroy -auto-approve "${TOFU_VARFILE_ARGS[@]}"
   printf 'Removing local TF_DATA_DIR after destroy: %s\n' "${TF_DATA_DIR}"
   rm -rf -- "${TF_DATA_DIR}"
+else
+  _tofu_layer_run_print_tofu_cmd tofu output -json
+  tofu output -json
 fi
