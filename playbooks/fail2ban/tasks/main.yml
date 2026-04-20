@@ -1,0 +1,166 @@
+- name: Install fail2ban package
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+    update_cache: true
+
+- name: Deploy fail2ban jail.local configuration
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [DEFAULT]
+      # Ban for 1 hour by default, search back 10 mins
+      bantime  = 1h
+      findtime = 10m
+      maxretry = 5
+      banaction = iptables-multiport
+      ignoreip = 127.0.0.1/8 ::1 172.17.0.1/16
+
+      # 1. Repeat Offenders (Banned 5 times in 1 day = 1 week ban)
+      [recidive]
+      enabled   = true
+      logpath   = /var/log/fail2ban.log
+      filter    = recidive
+      bantime   = 1w
+      findtime  = 1d
+      maxretry  = 5
+
+      # 2. SSH Protection (Port 22)
+      [sshd]
+      enabled  = true
+      port     = 22
+      filter   = sshd
+      backend  = systemd
+      maxretry = 5
+      bantime  = 24h
+
+      # 3. Nginx DOS (Relaxed for high-traffic usage)
+      [nginx-dos]
+      enabled  = true
+      port     = http,https
+      filter   = nginx-dos
+      logpath  = /datadisk/logs/nginx/*.access.log
+      findtime = 60
+      maxretry = 400
+      bantime  = 5m
+
+      # 4. Nginx 404 Scanners (Vulnerability probes)
+      [nginx-404]
+      enabled  = true
+      port     = http,https
+      filter   = nginx-404
+      logpath  = /datadisk/logs/nginx/*.access.log
+      maxretry = 20
+      findtime = 600
+      bantime  = 24h
+
+      # 5. Nginx Abuse (Error/access pattern monitoring)
+      [nginx-abuse]
+      enabled  = true
+      port     = http,https
+      filter   = nginx-abuse
+      logpath  = /datadisk/logs/nginx/*.error.log
+      maxretry = 5
+      findtime = 1h
+      bantime  = 1d
+
+      # 3. Caddy DOS (Relaxed for high-traffic usage)
+      [caddy-dos]
+      enabled  = true
+      port     = http,https
+      filter   = caddy-dos
+      logpath  = /var/log/caddy/*.access.log
+      findtime = 60
+      maxretry = 400
+      bantime  = 5m
+
+      # 4. Caddy 404 Scanners (Vulnerability probes)
+      [caddy-404]
+      enabled  = true
+      port     = http,https
+      filter   = caddy-404
+      logpath  = /var/log/caddy/*.access.log
+      maxretry = 20
+      findtime = 600
+      bantime  = 24h
+
+      # 5. Caddy Abuse (Error/access pattern monitoring)
+      [caddy-abuse]
+      enabled  = true
+      port     = http,https
+      filter   = caddy-abuse
+      logpath  = /var/log/caddy/*.log
+      maxretry = 5
+      findtime = 1h
+      bantime  = 1d
+  register: fail2ban_jail_local
+
+- name: Deploy custom fail2ban filters for caddy jails
+  ansible.builtin.copy:
+    dest: "/etc/fail2ban/filter.d/{{ item.name }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+    content: "{{ item.content }}"
+  loop:
+    - name: caddy-dos
+      content: |
+        [Definition]
+        # Matches common HTTP methods from Caddy access log lines.
+        # High-volume requesters are handled by jail thresholds.
+        failregex = ^<HOST>\s-\s-\s\[.*\]\s"(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)\s.*"\s\d{3}\s.*$
+        ignoreregex =
+    - name: caddy-404
+      content: |
+        [Definition]
+        failregex = ^<HOST>\s-\s-\s\[.*\]\s".*"\s404\s.*$
+        ignoreregex =
+    - name: caddy-abuse
+      content: |
+        [Definition]
+        failregex = ^<HOST>\s-\s-\s\[.*\]\s".*"\s(400|401|403|405|408|429|444|500|502|503|504)\s.*$
+        ignoreregex =
+  register: fail2ban_caddy_filters
+
+- name: Deploy custom fail2ban filters for nginx jails
+  ansible.builtin.copy:
+    dest: "/etc/fail2ban/filter.d/{{ item.name }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+    content: "{{ item.content }}"
+  loop:
+    - name: nginx-dos
+      content: |
+        [Definition]
+        failregex = ^<HOST>\s-\s-\s\[.*\]\s"(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)\s.*"\s\d{3}\s.*$
+        ignoreregex =
+    - name: nginx-404
+      content: |
+        [Definition]
+        failregex = ^<HOST>\s-\s-\s\[.*\]\s".*"\s404\s.*$
+        ignoreregex =
+    - name: nginx-abuse
+      content: |
+        [Definition]
+        failregex = ^<HOST>\s-\s-\s\[.*\]\s".*"\s(400|401|403|405|408|429|444|500|502|503|504)\s.*$
+        ignoreregex =
+  register: fail2ban_nginx_filters
+
+- name: Ensure fail2ban service is enabled and started
+  ansible.builtin.service:
+    name: fail2ban
+    enabled: true
+    state: started
+
+- name: Restart fail2ban when jail.local changes
+  ansible.builtin.service:
+    name: fail2ban
+    state: restarted
+  when: >-
+    fail2ban_jail_local.changed or
+    (fail2ban_caddy_filters is defined and fail2ban_caddy_filters.changed) or
+    (fail2ban_nginx_filters is defined and fail2ban_nginx_filters.changed)
