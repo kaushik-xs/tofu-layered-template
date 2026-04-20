@@ -19,3 +19,4 @@
     # - mongodb-tools
     - shell
     - ufw
+    - fail2ban
