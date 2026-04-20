@@ -485,7 +485,7 @@ if [[ -f "${MAKEFILE}" ]]; then
     info "Caddy targets already present in ${MAKEFILE} — skipping."
   else
     info "Appending Caddy targets to ${MAKEFILE} …"
-    printf '\ncaddy-config:\n\tsudo cp app_services/Caddyfile /etc/caddy/Caddyfile\n' >> "${MAKEFILE}"
+    printf '\ncaddy-config:\n\tsudo cp Caddyfile /etc/caddy/Caddyfile\n' >> "${MAKEFILE}"
     printf '\ncaddy-start:\n\tsudo systemctl start caddy\n' >> "${MAKEFILE}"
     printf '\ncaddy-stop:\n\tsudo systemctl stop caddy\n' >> "${MAKEFILE}"
     printf '\ncaddy-restart:\n\tsudo systemctl restart caddy\n' >> "${MAKEFILE}"

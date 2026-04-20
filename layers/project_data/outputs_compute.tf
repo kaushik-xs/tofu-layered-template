@@ -7,6 +7,11 @@ output "aws_compute_instances" {
   } : null
 }
 
+output "aws_instances" {
+  description = "AWS EC2 instances as a list of objects with name, zone, ip, and external_ip."
+  value       = local.aws_compute_enabled ? module.aws_compute[0].instances : []
+}
+
 output "gcp_compute_instances" {
   description = "GCE instances from computes when GCP compute is enabled and networking state exposes gcp_networking."
   value = local.gcp_compute_enabled ? {
@@ -17,4 +22,9 @@ output "gcp_compute_instances" {
     cloud_nat           = module.gcp_compute[0].cloud_nat
     cloud_nat_enabled   = module.gcp_compute[0].cloud_nat_enabled
   } : null
+}
+
+output "gcp_instances" {
+  description = "GCP Compute Engine instances as a list of objects with name, zone, ip, and external_ip."
+  value       = local.gcp_compute_enabled ? module.gcp_compute[0].instances : []
 }

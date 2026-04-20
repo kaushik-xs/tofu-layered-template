@@ -29,3 +29,15 @@ output "cloud_nat_enabled" {
   description = "Passthrough of networking cloud_nat_enabled flag."
   value       = var.cloud_nat_enabled
 }
+
+output "instances" {
+  description = "List of instance objects: name, zone, ip (internal), external_ip (NAT IP, null if none)."
+  value = [
+    for k, v in google_compute_instance.this : {
+      name        = v.name
+      zone        = v.zone
+      ip          = v.network_interface[0].network_ip
+      external_ip = try(v.network_interface[0].access_config[0].nat_ip, null)
+    }
+  ]
+}
