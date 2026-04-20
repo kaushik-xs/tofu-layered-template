@@ -478,33 +478,18 @@ info "Generating Caddyfile …"
 success "Written: ${CADDY_FILE}"
 
 # ── Append Caddy targets to Makefile ─────────────────────────────────────────
-ENV_DIR="${DOCKER_IMAGES_DIR}/${GROUP}/${ENV}"
-MAKEFILE="${ENV_DIR}/Makefile"
+MAKEFILE="${APP_DIR}/Makefile"
 
 if [[ -f "${MAKEFILE}" ]]; then
   if grep -q "caddy-config" "${MAKEFILE}" 2>/dev/null; then
     info "Caddy targets already present in ${MAKEFILE} — skipping."
   else
     info "Appending Caddy targets to ${MAKEFILE} …"
-    cat >> "${MAKEFILE}" << 'MAKEFILE_CADDY'
-
-.PHONY: caddy-config caddy-start caddy-stop caddy-restart caddy-reload
-
-caddy-config:
-	sudo cp app_services/Caddyfile /etc/caddy/Caddyfile
-
-caddy-start:
-	sudo systemctl start caddy
-
-caddy-stop:
-	sudo systemctl stop caddy
-
-caddy-restart:
-	sudo systemctl restart caddy
-
-caddy-reload:
-	sudo systemctl reload caddy
-MAKEFILE_CADDY
+    printf '\ncaddy-config:\n\tsudo cp app_services/Caddyfile /etc/caddy/Caddyfile\n' >> "${MAKEFILE}"
+    printf '\ncaddy-start:\n\tsudo systemctl start caddy\n' >> "${MAKEFILE}"
+    printf '\ncaddy-stop:\n\tsudo systemctl stop caddy\n' >> "${MAKEFILE}"
+    printf '\ncaddy-restart:\n\tsudo systemctl restart caddy\n' >> "${MAKEFILE}"
+    printf '\ncaddy-reload:\n\tsudo systemctl reload caddy\n' >> "${MAKEFILE}"
     success "Appended Caddy targets to ${MAKEFILE}"
   fi
 else
