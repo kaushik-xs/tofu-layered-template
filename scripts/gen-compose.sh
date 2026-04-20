@@ -35,9 +35,11 @@ CONF_FILE="${CONF_DIR}/last.conf"
 # ── Previous values ───────────────────────────────────────────────────────────
 PREV_GROUP=""
 PREV_ENV=""
+PREV_GH_ORG=""
 PREV_APP_SERVICES=""
 PREV_GENERATE_DB=""
 PREV_DB_SERVICES=""
+
 
 load_config() {
   # shellcheck source=/dev/null
@@ -50,6 +52,7 @@ save_config() {
 # docker-compose-gen — last used values (auto-generated, do not commit)
 PREV_GROUP="${GROUP}"
 PREV_ENV="${ENV}"
+PREV_GH_ORG="${GH_ORG}"
 PREV_APP_SERVICES="${APP_SERVICES}"
 PREV_GENERATE_DB="${GENERATE_DB}"
 PREV_DB_SERVICES="${DB_SERVICES:-}"
@@ -201,6 +204,7 @@ gen_app_services() {
   local group="$2"
   local env="$3"
   local services_spec="$4"
+  local gh_org="$5"
   local network_name="${group}-${env}-app-net"
 
   printf 'services:\n' > "$file"
@@ -217,17 +221,23 @@ gen_app_services() {
     for i in $(seq 1 "$count"); do
       local svc_name port
       if [[ "$count" -eq 1 ]]; then
-        svc_name="$(get_single_svc_name "$type")"
         port="$base_port"
       else
-        svc_name="${type}-${i}"
         port=$(( base_port + i - 1 ))
+      fi
+      local _ckey="APP_CUSTOM_NAME_${type//-/_}_${i}"
+      if [[ -n "${!_ckey}" ]]; then
+        svc_name="${!_ckey}"
+      elif [[ "$count" -eq 1 ]]; then
+        svc_name="$(get_single_svc_name "$type")"
+      else
+        svc_name="${type}-${i}"
       fi
       local env_prefix
       env_prefix="$(to_env_prefix "$svc_name")"
 
       printf '  %s:\n'                                                          "$svc_name"     >> "$file"
-      printf '    image: ghcr.io/%s/%s:${%s_IMAGE_TAG:-latest}\n'              "$group" "$svc_name" "$env_prefix" >> "$file"
+      printf '    image: ghcr.io/%s/%s:${%s_IMAGE_TAG:-latest}\n'              "$gh_org" "$svc_name" "$env_prefix" >> "$file"
       printf '    container_name: %s-%s-%s\n'                                   "$group" "$env" "$svc_name" >> "$file"
       printf '    restart: unless-stopped\n'                                                    >> "$file"
       printf '    ports:\n'                                                                     >> "$file"
@@ -276,11 +286,17 @@ gen_db_services() {
     for i in $(seq 1 "$count"); do
       local svc_name port
       if [[ "$count" -eq 1 ]]; then
-        svc_name="$type"
         port="$base_port"
       else
-        svc_name="${type}-${i}"
         port=$(( base_port + i - 1 ))
+      fi
+      local _ckey="DB_CUSTOM_NAME_${type//-/_}_${i}"
+      if [[ -n "${!_ckey}" ]]; then
+        svc_name="${!_ckey}"
+      elif [[ "$count" -eq 1 ]]; then
+        svc_name="$type"
+      else
+        svc_name="${type}-${i}"
       fi
 
       local vol_name
@@ -463,7 +479,8 @@ echo
 # ── Prompts ───────────────────────────────────────────────────────────────────
 echo -e "${YELLOW}── Target ────────────────────────────────────────────────${NC}"
 prompt GROUP "Group name"           "${PREV_GROUP}"
-prompt ENV   "Environment (e.g. qa, prod, staging)"      "${PREV_ENV}"
+prompt ENV    "Environment (e.g. qa, prod, staging)"   "${PREV_ENV}"
+prompt GH_ORG "GitHub organisation (for ghcr.io image path)" "${PREV_GH_ORG:-${PREV_GROUP}}"
 
 echo
 echo -e "${YELLOW}── App services ──────────────────────────────────────────${NC}"
@@ -472,6 +489,24 @@ echo -e "  e.g. next:2,node:2,python:3,rust:3"
 echo -e "  Known types: next · node · python · rust · go  (custom names also work)"
 prompt APP_SERVICES "App services" "${PREV_APP_SERVICES:-next:1,node:1}"
 validate_spec "$APP_SERVICES" "app services"
+
+echo
+prompt_yn _APP_CUSTOM "Customise app service names?" "n"
+if [[ "$_APP_CUSTOM" == "y" ]]; then
+  echo -e "  Press Enter to accept the default name for each instance."
+  IFS=',' read -ra _ASPECS <<< "$APP_SERVICES"
+  for _as in "${_ASPECS[@]}"; do
+    _as="$(echo "$_as" | tr -d ' ')"
+    _atype="$(echo "$_as" | cut -d: -f1)"
+    _acount="$(echo "$_as" | cut -d: -f2)"
+    for _ai in $(seq 1 "$_acount"); do
+      if [[ "$_acount" -eq 1 ]]; then _adefault="$(get_single_svc_name "$_atype")"
+      else _adefault="${_atype}-${_ai}"; fi
+      prompt _aname "  ${_atype} #${_ai} service name" "$_adefault"
+      printf -v "APP_CUSTOM_NAME_${_atype//-/_}_${_ai}" '%s' "$_aname"
+    done
+  done
+fi
 
 echo
 echo -e "${YELLOW}── DB services ───────────────────────────────────────────${NC}"
@@ -485,6 +520,24 @@ if [[ "$GENERATE_DB" == "y" ]]; then
   echo -e "  Known types: postgres · redis · mongo · mysql · mariadb"
   prompt DB_SERVICES "DB services" "${PREV_DB_SERVICES:-postgres:1}"
   validate_spec "$DB_SERVICES" "db services"
+
+  echo
+  prompt_yn _DB_CUSTOM "Customise DB service names?" "n"
+  if [[ "$_DB_CUSTOM" == "y" ]]; then
+    echo -e "  Press Enter to accept the default name for each instance."
+    IFS=',' read -ra _DSPECS <<< "$DB_SERVICES"
+    for _ds in "${_DSPECS[@]}"; do
+      _ds="$(echo "$_ds" | tr -d ' ')"
+      _dtype="$(echo "$_ds" | cut -d: -f1)"
+      _dcount="$(echo "$_ds" | cut -d: -f2)"
+      for _di in $(seq 1 "$_dcount"); do
+        if [[ "$_dcount" -eq 1 ]]; then _ddefault="$_dtype"
+        else _ddefault="${_dtype}-${_di}"; fi
+        prompt _dname "  ${_dtype} #${_di} service name" "$_ddefault"
+        printf -v "DB_CUSTOM_NAME_${_dtype//-/_}_${_di}" '%s' "$_dname"
+      done
+    done
+  fi
 else
   info "Skipping DB service file generation."
 fi
@@ -497,6 +550,7 @@ echo
 echo -e "${YELLOW}── Summary ───────────────────────────────────────────────${NC}"
 echo "  Group       : ${GROUP}"
 echo "  Environment : ${ENV}"
+echo "  GitHub org  : ${GH_ORG}  (ghcr.io/${GH_ORG}/...)"
 preview_services "App services" "$APP_SERVICES"
 if [[ "$GENERATE_DB" == "y" ]]; then
   preview_services "DB services" "$DB_SERVICES"
@@ -535,7 +589,7 @@ gen_app_networks "${APP_DIR}/compose.networks.yml" "${APP_NETWORK}"
 success "Written: ${APP_DIR}/compose.networks.yml"
 
 info "Generating app_services/compose.app-services.yml …"
-gen_app_services "${APP_DIR}/compose.app-services.yml" "${GROUP}" "${ENV}" "${APP_SERVICES}"
+gen_app_services "${APP_DIR}/compose.app-services.yml" "${GROUP}" "${ENV}" "${APP_SERVICES}" "${GH_ORG}"
 success "Written: ${APP_DIR}/compose.app-services.yml"
 
 if [[ "$GENERATE_DB" == "y" ]]; then
