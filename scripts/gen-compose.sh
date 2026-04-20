@@ -462,7 +462,7 @@ echo
 
 # ── Prompts ───────────────────────────────────────────────────────────────────
 echo -e "${YELLOW}── Target ────────────────────────────────────────────────${NC}"
-prompt GROUP "Group name  (e.g. rg2k, regere)"           "${PREV_GROUP}"
+prompt GROUP "Group name"           "${PREV_GROUP}"
 prompt ENV   "Environment (e.g. qa, prod, staging)"      "${PREV_ENV}"
 
 echo
