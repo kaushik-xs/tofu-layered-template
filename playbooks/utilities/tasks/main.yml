@@ -15,6 +15,7 @@
       - wget
       - unzip
       - tree
+      - make
     state: present
 
 - name: Display installed utilities
