@@ -477,6 +477,40 @@ info "Generating Caddyfile …"
 
 success "Written: ${CADDY_FILE}"
 
+# ── Append Caddy targets to Makefile ─────────────────────────────────────────
+ENV_DIR="${DOCKER_IMAGES_DIR}/${GROUP}/${ENV}"
+MAKEFILE="${ENV_DIR}/Makefile"
+
+if [[ -f "${MAKEFILE}" ]]; then
+  if grep -q "caddy-config" "${MAKEFILE}" 2>/dev/null; then
+    info "Caddy targets already present in ${MAKEFILE} — skipping."
+  else
+    info "Appending Caddy targets to ${MAKEFILE} …"
+    cat >> "${MAKEFILE}" << 'MAKEFILE_CADDY'
+
+.PHONY: caddy-config caddy-start caddy-stop caddy-restart caddy-reload
+
+caddy-config:
+	sudo cp app_services/Caddyfile /etc/caddy/Caddyfile
+
+caddy-start:
+	sudo systemctl start caddy
+
+caddy-stop:
+	sudo systemctl stop caddy
+
+caddy-restart:
+	sudo systemctl restart caddy
+
+caddy-reload:
+	sudo systemctl reload caddy
+MAKEFILE_CADDY
+    success "Appended Caddy targets to ${MAKEFILE}"
+  fi
+else
+  warn "No Makefile found at ${MAKEFILE} — skipping Makefile update."
+fi
+
 # ── Persist config ────────────────────────────────────────────────────────────
 save_config
 
@@ -530,7 +564,10 @@ echo -e "${GREEN}  Done!                                     ${NC}"
 echo -e "${GREEN}============================================${NC}"
 echo
 echo -e "${YELLOW}Next steps:${NC}"
-echo "  1. Copy ${CADDY_FILE} to /etc/caddy/Caddyfile on the app VM"
-echo "  2. sudo systemctl reload caddy"
-echo "  3. Caddy will auto-provision TLS for all configured domains"
+echo "  1. On the app VM, in the deploy directory:"
+echo "       make caddy-config    # copies Caddyfile to /etc/caddy/Caddyfile"
+echo "       make caddy-reload    # reloads Caddy without downtime"
+echo "     Or for a full restart:"
+echo "       make caddy-restart"
+echo "  2. Caddy will auto-provision TLS for all configured domains"
 echo
