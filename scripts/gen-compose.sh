@@ -35,7 +35,6 @@ CONF_FILE="${CONF_DIR}/last.conf"
 # ── Previous values ───────────────────────────────────────────────────────────
 PREV_GROUP=""
 PREV_ENV=""
-PREV_GH_ORG=""
 PREV_APP_SERVICES=""
 PREV_GENERATE_DB=""
 PREV_DB_SERVICES=""
@@ -52,7 +51,6 @@ save_config() {
 # docker-compose-gen — last used values (auto-generated, do not commit)
 PREV_GROUP="${GROUP}"
 PREV_ENV="${ENV}"
-PREV_GH_ORG="${GH_ORG}"
 PREV_APP_SERVICES="${APP_SERVICES}"
 PREV_GENERATE_DB="${GENERATE_DB}"
 PREV_DB_SERVICES="${DB_SERVICES:-}"
@@ -204,7 +202,6 @@ gen_app_services() {
   local group="$2"
   local env="$3"
   local services_spec="$4"
-  local gh_org="$5"
   local network_name="${group}-${env}-app-net"
 
   printf 'services:\n' > "$file"
@@ -235,9 +232,11 @@ gen_app_services() {
       fi
       local env_prefix
       env_prefix="$(to_env_prefix "$svc_name")"
+      local _ikey="APP_IMAGE_PATH_${type//-/_}_${i}"
+      local image_path="${!_ikey}"
 
-      printf '  %s:\n'                                                          "$svc_name"     >> "$file"
-      printf '    image: ghcr.io/%s/%s:${%s_IMAGE_TAG:-latest}\n'              "$gh_org" "$svc_name" "$env_prefix" >> "$file"
+      printf '  %s:\n'                   "$svc_name"  >> "$file"
+      printf '    image: %s\n'           "$image_path" >> "$file"
       printf '    container_name: %s-%s-%s\n'                                   "$group" "$env" "$svc_name" >> "$file"
       printf '    restart: unless-stopped\n'                                                    >> "$file"
       printf '    ports:\n'                                                                     >> "$file"
@@ -480,7 +479,6 @@ echo
 echo -e "${YELLOW}── Target ────────────────────────────────────────────────${NC}"
 prompt GROUP "Group name"           "${PREV_GROUP}"
 prompt ENV    "Environment (e.g. qa, prod, staging)"   "${PREV_ENV}"
-prompt GH_ORG "GitHub organisation (for ghcr.io image path)" "${PREV_GH_ORG:-${PREV_GROUP}}"
 
 echo
 echo -e "${YELLOW}── App services ──────────────────────────────────────────${NC}"
@@ -507,6 +505,28 @@ if [[ "$_APP_CUSTOM" == "y" ]]; then
     done
   done
 fi
+
+echo
+echo -e "${YELLOW}── App service image paths ───────────────────────────────${NC}"
+echo -e "  Provide the full image path for each service (e.g. ghcr.io/myorg/my-api:latest)"
+IFS=',' read -ra _IPSPECS <<< "$APP_SERVICES"
+for _ips in "${_IPSPECS[@]}"; do
+  _ips="$(echo "$_ips" | tr -d ' ')"
+  _iptype="$(echo "$_ips" | cut -d: -f1)"
+  _ipcount="$(echo "$_ips" | cut -d: -f2)"
+  for _ipi in $(seq 1 "$_ipcount"); do
+    _ckey="APP_CUSTOM_NAME_${_iptype//-/_}_${_ipi}"
+    if [[ -n "${!_ckey}" ]]; then
+      _ipname="${!_ckey}"
+    elif [[ "$_ipcount" -eq 1 ]]; then
+      _ipname="$(get_single_svc_name "$_iptype")"
+    else
+      _ipname="${_iptype}-${_ipi}"
+    fi
+    prompt _ipimage "  Image for ${_ipname}" ""
+    printf -v "APP_IMAGE_PATH_${_iptype//-/_}_${_ipi}" '%s' "$_ipimage"
+  done
+done
 
 echo
 echo -e "${YELLOW}── DB services ───────────────────────────────────────────${NC}"
@@ -550,7 +570,6 @@ echo
 echo -e "${YELLOW}── Summary ───────────────────────────────────────────────${NC}"
 echo "  Group       : ${GROUP}"
 echo "  Environment : ${ENV}"
-echo "  GitHub org  : ${GH_ORG}  (ghcr.io/${GH_ORG}/...)"
 preview_services "App services" "$APP_SERVICES"
 if [[ "$GENERATE_DB" == "y" ]]; then
   preview_services "DB services" "$DB_SERVICES"
@@ -589,7 +608,7 @@ gen_app_networks "${APP_DIR}/compose.networks.yml" "${APP_NETWORK}"
 success "Written: ${APP_DIR}/compose.networks.yml"
 
 info "Generating app_services/compose.app-services.yml …"
-gen_app_services "${APP_DIR}/compose.app-services.yml" "${GROUP}" "${ENV}" "${APP_SERVICES}" "${GH_ORG}"
+gen_app_services "${APP_DIR}/compose.app-services.yml" "${GROUP}" "${ENV}" "${APP_SERVICES}"
 success "Written: ${APP_DIR}/compose.app-services.yml"
 
 if [[ "$GENERATE_DB" == "y" ]]; then

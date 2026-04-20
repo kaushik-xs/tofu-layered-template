@@ -208,7 +208,7 @@ SOURCE_PATH="${GROUP_ENV_DIR}/${SERVICE_DIR}"
 echo
 
 # ── Destination path ──────────────────────────────────────────────────────────
-DEST_BASE="/home/${VM_USER}"
+DEST_BASE="/home/ubuntu/services"
 DEST_PATH="${VM_USER}@${VM_NAME}:${DEST_BASE}"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
@@ -226,7 +226,7 @@ echo -e "  ${CYAN}    --tunnel-through-iap \\${NC}"
 echo -e "  ${CYAN}    --project \"${GCP_PROJECT}\" \\${NC}"
 echo -e "  ${CYAN}    --recurse \\${NC}"
 echo -e "  ${CYAN}    \"${SOURCE_PATH}/\" \\${NC}"
-echo -e "  ${CYAN}    \"${DEST_PATH}/${SERVICE_DIR}\"${NC}"
+echo -e "  ${CYAN}    \"${DEST_PATH}\"${NC}"
 echo
 
 read -r -p "$(echo -e "${CYAN}?${NC} Proceed? [y/N]: ")" CONFIRM
@@ -234,7 +234,15 @@ read -r -p "$(echo -e "${CYAN}?${NC} Proceed? [y/N]: ")" CONFIRM
 
 # ── Run SCP ───────────────────────────────────────────────────────────────────
 echo
-info "Uploading ${SERVICE_DIR}/ to ${VM_NAME}:${DEST_BASE}/${SERVICE_DIR} …"
+info "Ensuring ${DEST_BASE}/${SERVICE_DIR} exists on ${VM_NAME} …"
+
+gcloud compute ssh "${VM_USER}@${VM_NAME}" \
+  --zone "${GCP_ZONE}" \
+  --tunnel-through-iap \
+  --project "${GCP_PROJECT}" \
+  --command "mkdir -p '${DEST_BASE}'"
+
+info "Uploading ${SERVICE_DIR}/ to ${VM_NAME}:/home/ubuntu/services …"
 
 gcloud compute scp \
   --zone "${GCP_ZONE}" \
@@ -242,7 +250,7 @@ gcloud compute scp \
   --project "${GCP_PROJECT}" \
   --recurse \
   "${SOURCE_PATH}/" \
-  "${DEST_PATH}/${SERVICE_DIR}"
+  "${DEST_PATH}"
 
 # ── Save config ───────────────────────────────────────────────────────────────
 save_config
@@ -255,6 +263,6 @@ echo -e "${GREEN}  Done!                                     ${NC}"
 echo -e "${GREEN}============================================${NC}"
 echo
 echo -e "${YELLOW}Next steps — on ${VM_NAME}:${NC}"
-echo "  cd ${DEST_BASE}/${SERVICE_DIR}"
+echo "  cd /home/ubuntu/services/${SERVICE_DIR}"
 echo "  make up"
 echo
