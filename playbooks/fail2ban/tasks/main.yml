@@ -37,6 +37,36 @@
       maxretry = 5
       bantime  = 24h
 
+      # 3. Nginx DOS (Relaxed for high-traffic usage)
+      [nginx-dos]
+      enabled  = true
+      port     = http,https
+      filter   = nginx-dos
+      logpath  = /datadisk/logs/nginx/*.access.log
+      findtime = 60
+      maxretry = 400
+      bantime  = 5m
+
+      # 4. Nginx 404 Scanners (Vulnerability probes)
+      [nginx-404]
+      enabled  = true
+      port     = http,https
+      filter   = nginx-404
+      logpath  = /datadisk/logs/nginx/*.access.log
+      maxretry = 20
+      findtime = 600
+      bantime  = 24h
+
+      # 5. Nginx Abuse (Error/access pattern monitoring)
+      [nginx-abuse]
+      enabled  = true
+      port     = http,https
+      filter   = nginx-abuse
+      logpath  = /datadisk/logs/nginx/*.error.log
+      maxretry = 5
+      findtime = 1h
+      bantime  = 1d
+
       # 3. Caddy DOS (Relaxed for high-traffic usage)
       [caddy-dos]
       enabled  = true
@@ -95,6 +125,31 @@
         ignoreregex =
   register: fail2ban_caddy_filters
 
+- name: Deploy custom fail2ban filters for nginx jails
+  ansible.builtin.copy:
+    dest: "/etc/fail2ban/filter.d/{{ item.name }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+    content: "{{ item.content }}"
+  loop:
+    - name: nginx-dos
+      content: |
+        [Definition]
+        failregex = ^<HOST>\s-\s-\s\[.*\]\s"(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)\s.*"\s\d{3}\s.*$
+        ignoreregex =
+    - name: nginx-404
+      content: |
+        [Definition]
+        failregex = ^<HOST>\s-\s-\s\[.*\]\s".*"\s404\s.*$
+        ignoreregex =
+    - name: nginx-abuse
+      content: |
+        [Definition]
+        failregex = ^<HOST>\s-\s-\s\[.*\]\s".*"\s(400|401|403|405|408|429|444|500|502|503|504)\s.*$
+        ignoreregex =
+  register: fail2ban_nginx_filters
+
 - name: Ensure fail2ban service is enabled and started
   ansible.builtin.service:
     name: fail2ban
@@ -105,4 +160,7 @@
   ansible.builtin.service:
     name: fail2ban
     state: restarted
-  when: fail2ban_jail_local.changed or fail2ban_caddy_filters.changed
+  when: >-
+    fail2ban_jail_local.changed or
+    (fail2ban_caddy_filters is defined and fail2ban_caddy_filters.changed) or
+    (fail2ban_nginx_filters is defined and fail2ban_nginx_filters.changed)
