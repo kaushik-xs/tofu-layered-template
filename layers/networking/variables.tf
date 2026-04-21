@@ -88,6 +88,24 @@ variable "gcp_db_target_tags" {
   default     = ["db"]
 }
 
+variable "gcp_web_ingress_source_ranges" {
+  description = <<-EOT
+    Default when network_topology.gcp.web_ingress_source_ranges is omitted: CIDRs allowed to reach
+    gcp_web_ingress_ports on all VMs. Use ["0.0.0.0/0"] for public HTTP/HTTPS. Empty = no rule.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+variable "gcp_web_ingress_ports" {
+  description = <<-EOT
+    Default when network_topology.gcp.web_ingress_ports is omitted: TCP ports opened by the web ingress rule.
+    Only used when gcp_web_ingress_source_ranges is non-empty.
+  EOT
+  type        = list(string)
+  default     = ["80", "443"]
+}
+
 variable "network_topology" {
   description = <<-EOT
     Abstract multi-cloud network layout. When aws.enabled or gcp.enabled is true, the corresponding

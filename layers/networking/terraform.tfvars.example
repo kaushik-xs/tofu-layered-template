@@ -30,6 +30,12 @@ gcp_region     = "us-central1"
 # Must match the tags set on instances in project_data computes.gcp.instances.<name>.tags.
 # gcp_db_target_tags = ["db"]
 
+# Optional: CIDRs allowed to reach gcp_web_ingress_ports (HTTP/HTTPS). Use ["0.0.0.0/0"] for public access. Empty = no rule.
+# gcp_web_ingress_source_ranges = ["0.0.0.0/0"]
+
+# Optional: TCP ports opened by the web ingress rule (default: ["80", "443"]).
+# gcp_web_ingress_ports = ["80", "443"]
+
 # Optional: declarative VPC layout. This layer applies the entry for `aws_region` under
 # `network_topology.aws.regions` and the entry for `gcp_project_id` under
 # `network_topology.gcp.projects` (OpenTofu cannot use one module per region/project with
@@ -84,6 +90,10 @@ network_topology = {
     # db_ingress_ports = ["5432"]
     # Optional: network tags that identify DB VMs for the db ingress rule. Overrides gcp_db_target_tags at top (default ["db"]).
     # db_target_tags = ["db"]
+    # Optional: CIDRs allowed to reach web_ingress_ports (HTTP/HTTPS). Use ["0.0.0.0/0"] for public access. Empty = no rule.
+    # web_ingress_source_ranges = ["0.0.0.0/0"]
+    # Optional: TCP ports opened by the web ingress rule (default ["80", "443"]).
+    # web_ingress_ports = ["80", "443"]
     projects = {
       example-project-id = {
         region = "us-central1"

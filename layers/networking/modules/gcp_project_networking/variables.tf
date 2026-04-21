@@ -63,3 +63,18 @@ variable "db_target_tags" {
   type        = list(string)
   default     = ["db"]
 }
+
+variable "web_ingress_source_ranges" {
+  description = <<-EOT
+    When non-empty, create a per-VPC ingress rule allowing web_ingress_ports from these CIDRs.
+    Use ["0.0.0.0/0"] for public HTTP/HTTPS access. Leave empty to skip the rule.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+variable "web_ingress_ports" {
+  description = "TCP ports opened by the web ingress firewall rule. Only evaluated when web_ingress_source_ranges is non-empty."
+  type        = list(string)
+  default     = ["80", "443"]
+}

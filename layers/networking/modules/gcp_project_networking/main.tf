@@ -118,6 +118,25 @@ resource "google_compute_firewall" "db_ingress" {
   }
 }
 
+resource "google_compute_firewall" "web_ingress" {
+  for_each = length(var.web_ingress_source_ranges) > 0 ? var.vpcs : {}
+
+  name    = "${each.key}-allow-web-ingress"
+  network = google_compute_network.this[each.key].name
+
+  description = "Allow TCP ${join(", ", var.web_ingress_ports)} from ${join(", ", var.web_ingress_source_ranges)}."
+
+  direction = "INGRESS"
+  priority  = 1000
+
+  source_ranges = var.web_ingress_source_ranges
+
+  allow {
+    protocol = "tcp"
+    ports    = var.web_ingress_ports
+  }
+}
+
 resource "google_compute_router" "nat" {
   for_each = var.enable_cloud_nat ? local.router_nat_instances : {}
 
