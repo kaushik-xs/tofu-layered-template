@@ -1,0 +1,12 @@
+---
+# Joins a host to a ZeroTier network using a pre-generated identity.
+# Required extra vars: zerotier_network_id, zerotier_node_id
+# Example:
+#   ansible-playbook zerotier.yml -i '<ip>,' -u ubuntu \
+#     -e zerotier_network_id=<16-hex-id> -e zerotier_node_id=<10-hex-id>
+- name: Configure ZeroTier
+  hosts: all
+  become: true
+
+  roles:
+    - zerotier

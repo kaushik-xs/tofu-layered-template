@@ -1,4 +1,9 @@
 ---
+# Vars:
+#   zerotier_network_id — 16-hex ZeroTier network ID to join (required)
+# ZeroTier generates its own node identity on first start.
+# Authorize the device in ZeroTier Central after this role runs.
+
 - name: Check if ZeroTier is already installed
   ansible.builtin.command: which zerotier-cli
   register: zerotier_check
@@ -16,17 +21,22 @@
     state: started
     enabled: yes
 
-- name: Verify ZeroTier installation
-  ansible.builtin.command: zerotier-cli --version
-  register: zerotier_version
+- name: Wait for ZeroTier daemon to be ready
+  ansible.builtin.command: zerotier-cli status
+  register: zt_status
+  retries: 10
+  delay: 3
+  until: zt_status.rc == 0
   changed_when: false
 
-- name: Display ZeroTier installation message
+- name: Join ZeroTier network
+  ansible.builtin.command: zerotier-cli join {{ zerotier_network_id }}
+  register: zt_join
+  changed_when: "'200 join OK' in zt_join.stdout"
+
+- name: Display ZeroTier status
   ansible.builtin.debug:
     msg:
-      - "ZeroTier has been successfully installed!"
-      - "{{ zerotier_version.stdout }}"
-      - "Join a network: sudo zerotier-cli join <network-id>"
-      - "List networks: sudo zerotier-cli listnetworks"
-      - "Leave a network: sudo zerotier-cli leave <network-id>"
-      - "Get your ZeroTier address: sudo zerotier-cli status"
+      - "ZeroTier status: {{ zt_status.stdout }}"
+      - "Joined network: {{ zerotier_network_id }}"
+      - "Authorize this device in ZeroTier Central."

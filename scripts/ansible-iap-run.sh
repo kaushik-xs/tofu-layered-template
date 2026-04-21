@@ -30,6 +30,7 @@ PREV_GOOGLE_CREDENTIALS=""
 PREV_VM_NAME=""
 PREV_VM_USER=""
 PREV_PLAYBOOK=""
+PREV_ZEROTIER_NETWORK_ID=""
 
 load_config() {
   # shellcheck source=/dev/null
@@ -47,6 +48,7 @@ PREV_GOOGLE_CREDENTIALS="${GOOGLE_CREDENTIALS}"
 PREV_VM_NAME="${VM_NAME}"
 PREV_VM_USER="${VM_USER}"
 PREV_PLAYBOOK="${PLAYBOOK}"
+PREV_ZEROTIER_NETWORK_ID="${ZEROTIER_NETWORK_ID:-}"
 CONF
 }
 
@@ -194,6 +196,26 @@ EXTRA_VARS=""
 read -r -p "$(echo -e "${CYAN}?${NC} Extra vars (e.g. key=val key2=val2, leave blank for none): ")" EXTRA_VARS
 echo
 
+# ── ZeroTier ──────────────────────────────────────────────────────────────────
+CONFIGURE_ZEROTIER=false
+ZEROTIER_NETWORK_ID="${PREV_ZEROTIER_NETWORK_ID:-}"
+
+if [[ "${PLAYBOOK}" == "deployment.yml" || "${PLAYBOOK}" == "db.yml" || "${PLAYBOOK}" == "zerotier.yml" ]]; then
+  echo -e "${YELLOW}── ZeroTier ───────────────────────────────────────────────${NC}"
+
+  if [[ "${PLAYBOOK}" == "zerotier.yml" ]]; then
+    CONFIGURE_ZEROTIER=true
+  else
+    read -r -p "$(echo -e "${CYAN}?${NC} Configure ZeroTier? [y/N]: ")" ZT_CONFIRM
+    [[ "$(echo "${ZT_CONFIRM}" | tr '[:upper:]' '[:lower:]')" == "y" ]] && CONFIGURE_ZEROTIER=true
+  fi
+
+  if [[ "${CONFIGURE_ZEROTIER}" == "true" ]]; then
+    prompt ZEROTIER_NETWORK_ID "ZeroTier network ID (16-hex)" "${PREV_ZEROTIER_NETWORK_ID}"
+  fi
+  echo
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 PROXY_CMD="gcloud compute start-iap-tunnel ${VM_NAME} 22 --listen-on-stdin --zone=${GCP_ZONE} --project=${GCP_PROJECT}"
 
@@ -204,6 +226,10 @@ echo "  GCP project : ${GCP_PROJECT}"
 echo "  User        : ${VM_USER}"
 echo "  Extra vars  : ${EXTRA_VARS:-<none>}"
 echo "  IAP tunnel  : yes"
+if [[ "${CONFIGURE_ZEROTIER}" == "true" ]]; then
+  echo "  ZeroTier    : yes"
+  echo "    network   : ${ZEROTIER_NETWORK_ID}"
+fi
 echo
 echo -e "  Command that will run:"
 echo -e "  ${CYAN}ansible-playbook -i \"local,\" ${PLAYBOOK} \\${NC}"
@@ -218,13 +244,29 @@ read -r -p "$(echo -e "${CYAN}?${NC} Proceed? [y/N]: ")" CONFIRM
 
 # ── Run ansible-playbook ──────────────────────────────────────────────────────
 echo
-info "Running playbook '${PLAYBOOK}' against ${VM_NAME} via IAP …"
-echo
+cd "${PLAYBOOKS_DIR}"
 
 ANSIBLE_EXTRA_VARS_ARGS=(-e "ansible_host=${VM_NAME}")
 [[ -n "${EXTRA_VARS}" ]] && ANSIBLE_EXTRA_VARS_ARGS+=(-e "${EXTRA_VARS}")
+if [[ "${CONFIGURE_ZEROTIER}" == "true" ]]; then
+  ANSIBLE_EXTRA_VARS_ARGS+=(-e "zerotier_network_id=${ZEROTIER_NETWORK_ID}")
+fi
 
-cd "${PLAYBOOKS_DIR}"
+if [[ "${CONFIGURE_ZEROTIER}" == "true" && "${PLAYBOOK}" != "zerotier.yml" ]]; then
+  info "Configuring ZeroTier on ${VM_NAME} …"
+  echo
+  ansible-playbook \
+    -i "local," \
+    "zerotier.yml" \
+    -u "${VM_USER}" \
+    -e "ansible_host=${VM_NAME}" \
+    -e "zerotier_network_id=${ZEROTIER_NETWORK_ID}" \
+    --ssh-extra-args="-o ProxyCommand=\"${PROXY_CMD}\""
+  echo
+fi
+
+info "Running playbook '${PLAYBOOK}' against ${VM_NAME} via IAP …"
+echo
 
 ansible-playbook \
   -i "local," \

@@ -10,7 +10,6 @@
     - awscli
     - rclone
     - ghcli
-    - zerotier
     - fonts
     - docker
     - caddy
