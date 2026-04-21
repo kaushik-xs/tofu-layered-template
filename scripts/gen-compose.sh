@@ -470,6 +470,26 @@ echo -e "${YELLOW}── Target ────────────────
 prompt GROUP "Group name"           "${PREV_GROUP}"
 prompt ENV    "Environment (e.g. qa, prod, staging)"   "${PREV_ENV}"
 
+APP_DIR="${DOCKER_IMAGES_DIR}/${GROUP}/${ENV}/app_services"
+DB_DIR="${DOCKER_IMAGES_DIR}/${GROUP}/${ENV}/db_services"
+
+EXISTING_FILES=()
+for f in \
+  "${APP_DIR}/Makefile" \
+  "${APP_DIR}/compose.app-services.yml" \
+  "${DB_DIR}/Makefile" \
+  "${DB_DIR}/compose.db-services.yml"; do
+  [[ -f "$f" ]] && EXISTING_FILES+=("$f")
+done
+
+if [[ ${#EXISTING_FILES[@]} -gt 0 ]]; then
+  echo
+  die "Output files already exist for group '${GROUP}' / env '${ENV}' — refusing to overwrite:
+$(printf '    %s\n' "${EXISTING_FILES[@]}")
+
+  Delete or move them manually, then re-run the script."
+fi
+
 echo
 echo -e "${YELLOW}── App services ──────────────────────────────────────────${NC}"
 echo -e "  Format: ${CYAN}type:count${NC} comma-separated"
@@ -553,9 +573,6 @@ else
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
-APP_DIR="${DOCKER_IMAGES_DIR}/${GROUP}/${ENV}/app_services"
-DB_DIR="${DOCKER_IMAGES_DIR}/${GROUP}/${ENV}/db_services"
-
 echo
 echo -e "${YELLOW}── Summary ───────────────────────────────────────────────${NC}"
 echo "  Group       : ${GROUP}"
