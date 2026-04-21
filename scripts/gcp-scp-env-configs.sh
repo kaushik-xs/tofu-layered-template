@@ -33,6 +33,7 @@ PREV_GROUP=""
 PREV_ENV=""
 PREV_SERVICE_DIR=""
 PREV_VM_USER=""
+PREV_GITHUB_USERNAME=""
 
 load_config() {
   # shellcheck source=/dev/null
@@ -51,6 +52,7 @@ PREV_GROUP="${GROUP}"
 PREV_ENV="${ENV}"
 PREV_SERVICE_DIR="${SERVICE_DIR}"
 PREV_VM_USER="${VM_USER}"
+PREV_GITHUB_USERNAME="${GITHUB_USERNAME}"
 CONF
 }
 
@@ -205,6 +207,20 @@ done
 prompt_choice SERVICE_DIR "Service directory to upload" "${PREV_SERVICE_DIR:-${SERVICE_DIRS[0]}}" "${SERVICE_DIRS[@]}"
 
 SOURCE_PATH="${GROUP_ENV_DIR}/${SERVICE_DIR}"
+
+# ── GHCR credentials ──────────────────────────────────────────────────────────
+echo
+echo -e "${YELLOW}── GHCR Login ────────────────────────────────────────────${NC}"
+GITHUB_USERNAME=""
+GITHUB_PAT=""
+DO_GHCR_LOGIN="n"
+read -r -p "$(echo -e "${CYAN}?${NC} Log in to ghcr.io on the VM? [y/N]: ")" DO_GHCR_LOGIN
+if [[ "$(echo "${DO_GHCR_LOGIN}" | tr '[:upper:]' '[:lower:]')" == "y" ]]; then
+  prompt GITHUB_USERNAME "GitHub username" "${PREV_GITHUB_USERNAME}"
+  read -r -s -p "$(echo -e "${CYAN}?${NC} GitHub PAT (input hidden): ")" GITHUB_PAT
+  echo
+  [[ -n "${GITHUB_PAT}" ]] || die "GitHub PAT is required."
+fi
 echo
 
 # ── Destination path ──────────────────────────────────────────────────────────
@@ -251,6 +267,35 @@ gcloud compute scp \
   --recurse \
   "${SOURCE_PATH}/" \
   "${DEST_PATH}"
+
+# ── Docker login on VM ────────────────────────────────────────────────────────
+if [[ "$(echo "${DO_GHCR_LOGIN}" | tr '[:upper:]' '[:lower:]')" == "y" ]]; then
+  info "Logging in to ghcr.io on ${VM_NAME} …"
+
+  gcloud compute ssh "${VM_USER}@${VM_NAME}" \
+    --zone "${GCP_ZONE}" \
+    --tunnel-through-iap \
+    --project "${GCP_PROJECT}" \
+    --command "echo '${GITHUB_PAT}' | docker login ghcr.io -u '${GITHUB_USERNAME}' --password-stdin"
+
+  success "docker login ghcr.io succeeded on ${VM_NAME}."
+
+fi
+
+# ── Force-recreate containers ─────────────────────────────────────────────────
+DO_FORCE_RECREATE="n"
+read -r -p "$(echo -e "${CYAN}?${NC} Run 'make force-recreate' on the VM? [y/N]: ")" DO_FORCE_RECREATE
+if [[ "$(echo "${DO_FORCE_RECREATE}" | tr '[:upper:]' '[:lower:]')" == "y" ]]; then
+  info "Running 'make force-recreate' in ${DEST_BASE}/${SERVICE_DIR} on ${VM_NAME} …"
+
+  gcloud compute ssh "${VM_USER}@${VM_NAME}" \
+    --zone "${GCP_ZONE}" \
+    --tunnel-through-iap \
+    --project "${GCP_PROJECT}" \
+    --command "cd '${DEST_BASE}/${SERVICE_DIR}' && make force-recreate"
+
+  success "make force-recreate completed on ${VM_NAME}."
+fi
 
 # ── Save config ───────────────────────────────────────────────────────────────
 save_config

@@ -7,10 +7,8 @@
 #
 # Generates files under docker-images/<group>/<env>/:
 #   app_services/Makefile                  — App VM operations
-#   app_services/compose.networks.yml      — single bridge network
-#   app_services/compose.app-services.yml  — all app services
+#   app_services/compose.app-services.yml  — all app services (network inline)
 #   db_services/Makefile                   — DB VM operations (optional)
-#   db_services/compose.networks.yml       — host-driver network (optional)
 #   db_services/compose.db-services.yml    — all db services (optional)
 #
 # App services and DB services are designed to run on separate VMs.
@@ -174,28 +172,6 @@ preview_services() {
   done
 }
 
-# ── Generate app networks file ────────────────────────────────────────────────
-gen_app_networks() {
-  local file="$1"
-  local network_name="$2"
-  cat > "$file" << YAML
-networks:
-  ${network_name}:
-    driver: bridge
-YAML
-}
-
-# ── Generate db networks file ─────────────────────────────────────────────────
-gen_db_networks() {
-  local file="$1"
-  local network_name="$2"
-  cat > "$file" << YAML
-networks:
-  ${network_name}:
-    driver: host
-YAML
-}
-
 # ── Generate app services compose ─────────────────────────────────────────────
 gen_app_services() {
   local file="$1"
@@ -256,9 +232,9 @@ gen_app_services() {
     done
   done
 
-  printf 'networks:\n'              >> "$file"
-  printf '  %s:\n' "$network_name" >> "$file"
-  printf '    external: true\n'    >> "$file"
+  printf 'networks:\n'                >> "$file"
+  printf '  %s:\n' "$network_name"   >> "$file"
+  printf '    driver: bridge\n'      >> "$file"
 }
 
 # ── Generate db services compose ──────────────────────────────────────────────
@@ -413,19 +389,26 @@ gen_app_makefile() {
   local env="$3"
 
   printf '# App VM — copy this directory to the app VM and run make from here\n' > "$file"
-  printf '.PHONY: up down restart ps list restart-container logs\n\n' >> "$file"
+  printf '.PHONY: up down restart pull force-recreate ps list restart-container logs\n\n' >> "$file"
 
   printf 'up:\n' >> "$file"
-  printf '\tdocker compose -f compose.networks.yml up -d\n'     >> "$file"
   printf '\tdocker compose -f compose.app-services.yml up -d\n' >> "$file"
   printf '\n' >> "$file"
 
   printf 'down:\n' >> "$file"
   printf '\tdocker compose -f compose.app-services.yml down\n'  >> "$file"
-  printf '\tdocker compose -f compose.networks.yml down\n'      >> "$file"
   printf '\n' >> "$file"
 
   printf 'restart: down up\n\n' >> "$file"
+
+  printf 'pull:\n' >> "$file"
+  printf '\tdocker compose -f compose.app-services.yml pull\n' >> "$file"
+  printf '\n' >> "$file"
+
+  printf '# Pull latest images then force-recreate all containers (bypasses build cache)\n' >> "$file"
+  printf 'force-recreate: pull\n' >> "$file"
+  printf '\tdocker compose -f compose.app-services.yml up -d --force-recreate --no-deps\n' >> "$file"
+  printf '\n' >> "$file"
 
   printf 'ps:\n' >> "$file"
   printf '\tdocker compose -f compose.app-services.yml ps\n' >> "$file"
@@ -441,19 +424,26 @@ gen_db_makefile() {
   local env="$3"
 
   printf '# DB VM — copy this directory to the DB VM and run make from here\n' > "$file"
-  printf '.PHONY: up down restart ps list restart-container logs\n\n' >> "$file"
+  printf '.PHONY: up down restart pull force-recreate ps list restart-container logs\n\n' >> "$file"
 
   printf 'up:\n' >> "$file"
-  printf '\tdocker compose -f compose.networks.yml up -d\n'    >> "$file"
   printf '\tdocker compose -f compose.db-services.yml up -d\n' >> "$file"
   printf '\n' >> "$file"
 
   printf 'down:\n' >> "$file"
   printf '\tdocker compose -f compose.db-services.yml down\n'  >> "$file"
-  printf '\tdocker compose -f compose.networks.yml down\n'     >> "$file"
   printf '\n' >> "$file"
 
   printf 'restart: down up\n\n' >> "$file"
+
+  printf 'pull:\n' >> "$file"
+  printf '\tdocker compose -f compose.db-services.yml pull\n' >> "$file"
+  printf '\n' >> "$file"
+
+  printf '# Pull latest images then force-recreate all containers (bypasses build cache)\n' >> "$file"
+  printf 'force-recreate: pull\n' >> "$file"
+  printf '\tdocker compose -f compose.db-services.yml up -d --force-recreate --no-deps\n' >> "$file"
+  printf '\n' >> "$file"
 
   printf 'ps:\n' >> "$file"
   printf '\tdocker compose -f compose.db-services.yml ps\n' >> "$file"
@@ -579,11 +569,9 @@ fi
 echo
 echo "  Files to write:"
 echo "    ${APP_DIR}/Makefile"
-echo "    ${APP_DIR}/compose.networks.yml"
 echo "    ${APP_DIR}/compose.app-services.yml"
 if [[ "$GENERATE_DB" == "y" ]]; then
   echo "    ${DB_DIR}/Makefile"
-  echo "    ${DB_DIR}/compose.networks.yml"
   echo "    ${DB_DIR}/compose.db-services.yml"
 fi
 echo
@@ -595,17 +583,10 @@ read -r -p "$(echo -e "${CYAN}?${NC} Proceed? [y/N]: ")" CONFIRM
 mkdir -p "${APP_DIR}"
 [[ "$GENERATE_DB" == "y" ]] && mkdir -p "${DB_DIR}"
 
-APP_NETWORK="${GROUP}-${ENV}-app-net"
-DB_NETWORK="${GROUP}-${ENV}-db-net"
-
 echo
 info "Generating app_services/Makefile …"
 gen_app_makefile "${APP_DIR}/Makefile" "${GROUP}" "${ENV}"
 success "Written: ${APP_DIR}/Makefile"
-
-info "Generating app_services/compose.networks.yml …"
-gen_app_networks "${APP_DIR}/compose.networks.yml" "${APP_NETWORK}"
-success "Written: ${APP_DIR}/compose.networks.yml"
 
 info "Generating app_services/compose.app-services.yml …"
 gen_app_services "${APP_DIR}/compose.app-services.yml" "${GROUP}" "${ENV}" "${APP_SERVICES}"
@@ -615,10 +596,6 @@ if [[ "$GENERATE_DB" == "y" ]]; then
   info "Generating db_services/Makefile …"
   gen_db_makefile "${DB_DIR}/Makefile" "${GROUP}" "${ENV}"
   success "Written: ${DB_DIR}/Makefile"
-
-  info "Generating db_services/compose.networks.yml …"
-  gen_db_networks "${DB_DIR}/compose.networks.yml" "${DB_NETWORK}"
-  success "Written: ${DB_DIR}/compose.networks.yml"
 
   info "Generating db_services/compose.db-services.yml …"
   gen_db_services "${DB_DIR}/compose.db-services.yml" "${GROUP}" "${ENV}" "${DB_SERVICES}"
@@ -630,8 +607,8 @@ save_config
 success "Saved values to ${CONF_FILE}"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
-local_file_count=3
-[[ "$GENERATE_DB" == "y" ]] && local_file_count=6
+local_file_count=2
+[[ "$GENERATE_DB" == "y" ]] && local_file_count=4
 
 echo
 echo -e "${GREEN}============================================${NC}"
@@ -641,9 +618,11 @@ echo
 echo "Generated ${local_file_count} files under docker-images/${GROUP}/${ENV}/"
 echo
 echo -e "${YELLOW}App VM — deploy app_services/ and run:${NC}"
-echo "  make up                          — start network + app containers"
-echo "  make down                        — stop app containers + network"
+echo "  make up                          — start app containers"
+echo "  make down                        — stop app containers"
 echo "  make restart                     — down then up"
+echo "  make pull                        — pull latest images"
+echo "  make force-recreate              — pull + recreate all containers (cache bypass)"
 echo "  make ps                          — show running app containers"
 echo "  make list                        — list all ${GROUP}-${ENV} containers"
 echo "  make restart-container c=<name>  — restart one container"
@@ -651,9 +630,11 @@ echo "  make logs c=<name>               — tail logs of one container"
 if [[ "$GENERATE_DB" == "y" ]]; then
   echo
   echo -e "${YELLOW}DB VM — deploy db_services/ and run:${NC}"
-  echo "  make up                          — start network + db containers"
-  echo "  make down                        — stop db containers + network"
+  echo "  make up                          — start db containers"
+  echo "  make down                        — stop db containers"
   echo "  make restart                     — down then up"
+  echo "  make pull                        — pull latest images"
+  echo "  make force-recreate              — pull + recreate all containers (cache bypass)"
   echo "  make ps                          — show running db containers"
   echo "  make list                        — list all ${GROUP}-${ENV} containers"
   echo "  make restart-container c=<name>  — restart one container"
