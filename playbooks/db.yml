@@ -8,7 +8,6 @@
   roles:
     - network-utils
     - utilities
-    # - opentofu
     - awscli
     - rclone
     - ghcli
