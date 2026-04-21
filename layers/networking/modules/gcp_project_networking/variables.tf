@@ -78,3 +78,13 @@ variable "web_ingress_ports" {
   type        = list(string)
   default     = ["80", "443"]
 }
+
+variable "zerotier_ingress_source_ranges" {
+  description = <<-EOT
+    When non-empty, create a per-VPC ingress rule allowing UDP 9993 from these CIDRs (ZeroTier peer traffic).
+    Use ["0.0.0.0/0"] so ZeroTier peers from any IP can establish direct connections.
+    Without this rule ZeroTier falls back to relayed traffic. Leave empty to skip the rule.
+  EOT
+  type        = list(string)
+  default     = []
+}

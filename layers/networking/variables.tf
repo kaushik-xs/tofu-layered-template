@@ -106,6 +106,15 @@ variable "gcp_web_ingress_ports" {
   default     = ["80", "443"]
 }
 
+variable "gcp_zerotier_ingress_source_ranges" {
+  description = <<-EOT
+    Default when network_topology.gcp.zerotier_ingress_source_ranges is omitted: CIDRs allowed to reach
+    UDP 9993 on all VMs for ZeroTier peer traffic. Use ["0.0.0.0/0"] to allow all peers. Empty = no rule.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "network_topology" {
   description = <<-EOT
     Abstract multi-cloud network layout. When aws.enabled or gcp.enabled is true, the corresponding

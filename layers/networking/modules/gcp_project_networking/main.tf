@@ -137,6 +137,25 @@ resource "google_compute_firewall" "web_ingress" {
   }
 }
 
+resource "google_compute_firewall" "zerotier_ingress" {
+  for_each = length(var.zerotier_ingress_source_ranges) > 0 ? var.vpcs : {}
+
+  name    = "${each.key}-allow-zerotier-ingress"
+  network = google_compute_network.this[each.key].name
+
+  description = "Allow UDP 9993 from ${join(", ", var.zerotier_ingress_source_ranges)} for ZeroTier peer-to-peer traffic."
+
+  direction = "INGRESS"
+  priority  = 1000
+
+  source_ranges = var.zerotier_ingress_source_ranges
+
+  allow {
+    protocol = "udp"
+    ports    = ["9993"]
+  }
+}
+
 resource "google_compute_router" "nat" {
   for_each = var.enable_cloud_nat ? local.router_nat_instances : {}
 

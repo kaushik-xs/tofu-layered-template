@@ -36,6 +36,10 @@ gcp_region     = "us-central1"
 # Optional: TCP ports opened by the web ingress rule (default: ["80", "443"]).
 # gcp_web_ingress_ports = ["80", "443"]
 
+# Optional: CIDRs allowed to reach UDP 9993 on all VMs for ZeroTier peer traffic. Use ["0.0.0.0/0"] to allow all peers.
+# Without this rule ZeroTier falls back to relayed traffic. Empty = no rule.
+# gcp_zerotier_ingress_source_ranges = ["0.0.0.0/0"]
+
 # Optional: declarative VPC layout. This layer applies the entry for `aws_region` under
 # `network_topology.aws.regions` and the entry for `gcp_project_id` under
 # `network_topology.gcp.projects` (OpenTofu cannot use one module per region/project with
@@ -94,6 +98,8 @@ network_topology = {
     # web_ingress_source_ranges = ["0.0.0.0/0"]
     # Optional: TCP ports opened by the web ingress rule (default ["80", "443"]).
     # web_ingress_ports = ["80", "443"]
+    # Optional: CIDRs allowed UDP 9993 for ZeroTier peer traffic. Use ["0.0.0.0/0"]. Empty = no rule.
+    # zerotier_ingress_source_ranges = ["0.0.0.0/0"]
     projects = {
       example-project-id = {
         region = "us-central1"
