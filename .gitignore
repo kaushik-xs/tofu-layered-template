@@ -20,3 +20,5 @@
 **/crash.*.log
 
 docker-images/*
+
+creds
