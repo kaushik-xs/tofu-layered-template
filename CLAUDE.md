@@ -21,6 +21,7 @@ Layers must be deployed in this order (each may depend on the previous via remot
 - **Backend: AWS S3 + DynamoDB** — no local state, no other backends
 - **Providers: AWS, GCP, GitHub, Vault** — configured in `layers/*/providers.tf`
 - **Workspace naming:** `terraform.<aws_profile>.<workspace>.tfvars` — these files are gitignored; use `terraform.tfvars.example` as a template
+- **tfvars examples:** whenever a variable is added or changed in any layer, the corresponding `terraform.tfvars.example` in that layer **must** be updated to reflect it
 
 ## Repository Layout
 

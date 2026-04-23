@@ -108,6 +108,41 @@ variable "sqs_queues" {
   default = {}
 }
 
+variable "iam_users" {
+  description = <<-EOT
+    Map of logical name => IAM user configuration. Each key creates one aws_iam_user with a programmatic access key
+    and an inline policy. Logical keys are stable Terraform map keys (e.g. app-backend, worker).
+    username is the IAM user name in AWS.
+
+    s3_access grants permissions to S3 buckets defined in s3_buckets:
+      bucket_keys    — list of logical bucket keys from s3_buckets, or ["*"] to target all buckets in this layer.
+      bucket_actions — actions applied to the bucket ARN itself (default: s3:ListBucket, s3:GetBucketLocation).
+      object_actions — actions applied to objects inside the bucket (default: s3:GetObject, s3:PutObject, s3:DeleteObject).
+
+    sqs_access grants permissions to SQS queues defined in sqs_queues:
+      queue_keys — list of logical queue keys from sqs_queues, or ["*"] to target all queues in this layer.
+      actions    — SQS actions applied to the queue ARN (default: Send, Receive, Delete, GetQueueAttributes, GetQueueUrl).
+
+    Access key ID and secret are stored in Terraform state and emitted as a sensitive output.
+    Retrieve with: tofu output -json iam_users
+    Leave empty or omit to create no IAM users.
+  EOT
+  type = map(object({
+    username = string
+    s3_access = optional(object({
+      bucket_keys    = list(string)
+      bucket_actions = optional(list(string), ["s3:ListBucket", "s3:GetBucketLocation"])
+      object_actions = optional(list(string), ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"])
+    }))
+    sqs_access = optional(object({
+      queue_keys = list(string)
+      actions    = optional(list(string), ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:GetQueueUrl"])
+    }))
+    tags = optional(map(string), {})
+  }))
+  default = {}
+}
+
 variable "computes" {
   description = <<-EOT
     Declarative VM layout for AWS and GCP. Subnet and network identifiers resolve from networking remote state

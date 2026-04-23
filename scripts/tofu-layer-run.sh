@@ -15,7 +15,7 @@
 #     <workspace>/<tf_state_key> in the bucket; default workspace uses <tf_state_key> only).
 #
 # Usage (from repository root):
-#   AWS_PROFILE=<name> GOOGLE_CREDENTIALS=<path-or-json> ./scripts/tofu-layer-run.sh <layer_name> <workspace> <action>
+#   AWS_PROFILE=<name> GOOGLE_CREDENTIALS=<path-or-json> ./scripts/tofu-layer-run.sh <layer_name> <workspace> <action> [-show-sensitive]
 #
 # <layer_name> must match a directory under layers/ (e.g. project → layers/project).
 #
@@ -28,6 +28,9 @@
 #   <layer_name>   Directory name under layers/ (e.g. global_identity, project)
 #   <workspace>    Same name for terraform.<profile>.<workspace>.tfvars and OpenTofu workspace
 #   <action>       One of "plan", "apply", "destroy", or "output" (output emits JSON; no confirmation required)
+#
+# Optional args:
+#   -show-sensitive  Pass -show-sensitive to tofu plan/apply/destroy/output (reveals redacted sensitive values)
 #
 # Optional env:
 #   TF_STATE_DYNAMODB_TABLE=<table>     Enable state locking with DynamoDB (backend-config)
@@ -48,6 +51,7 @@
 # Example:
 #   AWS_PROFILE=<AWS_PROFILE> GOOGLE_CREDENTIALS=/path/to/sa-key.json ./scripts/tofu-layer-run.sh global_identity dev plan
 #   AWS_PROFILE=<AWS_PROFILE> GOOGLE_CREDENTIALS=/path/to/sa-key.json ./scripts/tofu-layer-run.sh project prod destroy
+#   AWS_PROFILE=<AWS_PROFILE> GOOGLE_CREDENTIALS=/path/to/sa-key.json ./scripts/tofu-layer-run.sh project_data dev output -show-sensitive
 #
 set -euo pipefail
 
@@ -68,6 +72,10 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LAYER_NAME="${1:?layer_name is required}"
 WORKSPACE_NAME="${2:?workspace is required}"
 ACTION="${3:?action is required}"
+SHOW_SENSITIVE=""
+if [[ "${4:-}" == "-show-sensitive" ]]; then
+  SHOW_SENSITIVE="-show-sensitive"
+fi
 
 LAYER_DIR="${REPO_ROOT}/layers/${LAYER_NAME}"
 if [[ ! -d "${LAYER_DIR}" ]]; then
@@ -210,6 +218,7 @@ _tofu_layer_run_print_summary() {
     "$(printf '%s %-*s %s' "🏗️" "${_lw}" "Layer" "${LAYER_NAME}")"
     "$(printf '%s %-*s %s' "📁" "${_lw}" "Directory" "${LAYER_DIR}")"
     "${_action_row}"
+    "$(printf '%s %-*s %s' "🔓" "${_lw}" "Show sensitive" "${SHOW_SENSITIVE:-(no)}")"
   )
 
   local _max=0
@@ -352,18 +361,21 @@ fi
 _tofu_layer_run_print_tofu_cmd tofu validate "${TOFU_VARFILE_ARGS[@]}"
 tofu validate "${TOFU_VARFILE_ARGS[@]}"
 
+SENSITIVE_ARGS=()
+[[ -n "${SHOW_SENSITIVE}" ]] && SENSITIVE_ARGS=("${SHOW_SENSITIVE}")
+
 if [[ "${ACTION}" == "plan" ]]; then
-  _tofu_layer_run_print_tofu_cmd tofu plan "${TOFU_VARFILE_ARGS[@]}"
-  tofu plan "${TOFU_VARFILE_ARGS[@]}"
+  _tofu_layer_run_print_tofu_cmd tofu plan "${SENSITIVE_ARGS[@]+"${SENSITIVE_ARGS[@]}"}" "${TOFU_VARFILE_ARGS[@]}"
+  tofu plan "${SENSITIVE_ARGS[@]+"${SENSITIVE_ARGS[@]}"}" "${TOFU_VARFILE_ARGS[@]}"
 elif [[ "${ACTION}" == "apply" ]]; then
-  _tofu_layer_run_print_tofu_cmd tofu apply -auto-approve "${TOFU_VARFILE_ARGS[@]}"
-  tofu apply -auto-approve "${TOFU_VARFILE_ARGS[@]}"
+  _tofu_layer_run_print_tofu_cmd tofu apply -auto-approve "${SENSITIVE_ARGS[@]+"${SENSITIVE_ARGS[@]}"}" "${TOFU_VARFILE_ARGS[@]}"
+  tofu apply -auto-approve "${SENSITIVE_ARGS[@]+"${SENSITIVE_ARGS[@]}"}" "${TOFU_VARFILE_ARGS[@]}"
 elif [[ "${ACTION}" == "destroy" ]]; then
-  _tofu_layer_run_print_tofu_cmd tofu destroy -auto-approve "${TOFU_VARFILE_ARGS[@]}"
-  tofu destroy -auto-approve "${TOFU_VARFILE_ARGS[@]}"
+  _tofu_layer_run_print_tofu_cmd tofu destroy -auto-approve "${SENSITIVE_ARGS[@]+"${SENSITIVE_ARGS[@]}"}" "${TOFU_VARFILE_ARGS[@]}"
+  tofu destroy -auto-approve "${SENSITIVE_ARGS[@]+"${SENSITIVE_ARGS[@]}"}" "${TOFU_VARFILE_ARGS[@]}"
   printf 'Removing local TF_DATA_DIR after destroy: %s\n' "${TF_DATA_DIR}"
   rm -rf -- "${TF_DATA_DIR}"
 else
-  _tofu_layer_run_print_tofu_cmd tofu output -json
-  tofu output -json
+  _tofu_layer_run_print_tofu_cmd tofu output -json "${SENSITIVE_ARGS[@]+"${SENSITIVE_ARGS[@]}"}"
+  tofu output -json "${SENSITIVE_ARGS[@]+"${SENSITIVE_ARGS[@]}"}"
 fi

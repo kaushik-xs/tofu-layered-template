@@ -71,6 +71,55 @@ gcp_region     = "us-central1"
 #   }
 # }
 
+# Optional: IAM users with programmatic access. Each user gets an AWS IAM user + access key + inline policy.
+# s3_access.bucket_keys and sqs_access.queue_keys reference logical keys from s3_buckets / sqs_queues above.
+# Use ["*"] to grant access to all buckets or queues defined in this layer.
+# bucket_actions apply to the bucket ARN (e.g. ListBucket); object_actions apply to objects inside (e.g. GetObject).
+# Access key ID and secret are stored in Terraform state — retrieve with: tofu output -json iam_users
+# iam_users = {
+#   app-backend = {
+#     username = "myorg-app-backend-prod"
+#     # Full S3 read/write access to a specific bucket + SQS access to specific queues
+#     s3_access = {
+#       bucket_keys    = ["app-uploads"]
+#       bucket_actions = ["s3:ListBucket", "s3:GetBucketLocation"]
+#       object_actions = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+#     }
+#     sqs_access = {
+#       queue_keys = ["app-events", "background-jobs"]
+#       actions    = ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:GetQueueUrl"]
+#     }
+#     tags = {
+#       purpose     = "backend"
+#       environment = "prod"
+#     }
+#   }
+#   app-readonly = {
+#     username = "myorg-app-readonly-prod"
+#     # Read-only access to all buckets in this layer; no SQS access
+#     s3_access = {
+#       bucket_keys    = ["*"]
+#       bucket_actions = ["s3:ListBucket", "s3:GetBucketLocation"]
+#       object_actions = ["s3:GetObject"]
+#     }
+#     tags = {
+#       purpose     = "readonly"
+#       environment = "prod"
+#     }
+#   }
+#   worker = {
+#     username = "myorg-worker-prod"
+#     # SQS-only access to all queues — no S3
+#     sqs_access = {
+#       queue_keys = ["*"]
+#     }
+#     tags = {
+#       purpose     = "worker"
+#       environment = "prod"
+#     }
+#   }
+# }
+
 # Optional: GCP only — path to SSH public key; merged into each VM metadata so ansible/ssh can use the matching private key.
 # gcp_compute_ssh_public_key_path = "~/.ssh/id_rsa.pub"
 
