@@ -114,12 +114,14 @@ variable "iam_users" {
     and an inline policy. Logical keys are stable Terraform map keys (e.g. app-backend, worker).
     username is the IAM user name in AWS.
 
-    s3_access grants permissions to S3 buckets defined in s3_buckets:
+    s3_access is a list of permission groups, each targeting a subset of buckets with specific actions.
+    This allows different permissions on different buckets for the same user.
       bucket_keys    — list of logical bucket keys from s3_buckets, or ["*"] to target all buckets in this layer.
       bucket_actions — actions applied to the bucket ARN itself (default: s3:ListBucket, s3:GetBucketLocation).
       object_actions — actions applied to objects inside the bucket (default: s3:GetObject, s3:PutObject, s3:DeleteObject).
 
-    sqs_access grants permissions to SQS queues defined in sqs_queues:
+    sqs_access is a list of permission groups, each targeting a subset of queues with specific actions.
+    This allows different permissions on different queues for the same user.
       queue_keys — list of logical queue keys from sqs_queues, or ["*"] to target all queues in this layer.
       actions    — SQS actions applied to the queue ARN (default: Send, Receive, Delete, GetQueueAttributes, GetQueueUrl).
 
@@ -129,15 +131,15 @@ variable "iam_users" {
   EOT
   type = map(object({
     username = string
-    s3_access = optional(object({
+    s3_access = optional(list(object({
       bucket_keys    = list(string)
       bucket_actions = optional(list(string), ["s3:ListBucket", "s3:GetBucketLocation"])
       object_actions = optional(list(string), ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"])
-    }))
-    sqs_access = optional(object({
+    })), [])
+    sqs_access = optional(list(object({
       queue_keys = list(string)
       actions    = optional(list(string), ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:GetQueueUrl"])
-    }))
+    })), [])
     tags = optional(map(string), {})
   }))
   default = {}
