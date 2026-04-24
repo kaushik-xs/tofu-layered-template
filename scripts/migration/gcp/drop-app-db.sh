@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# create-app-db.sh  —  LOCAL machine script
+# drop-app-db.sh  —  LOCAL machine script
 #
-# Creates an application database and user on a PostgreSQL Docker container
-# running on a GCP Compute Engine VM, then grants all necessary privileges.
+# Drops a named application database and its app user from a PostgreSQL Docker
+# container running on a GCP Compute Engine VM.
 #
 # Usage (run this on your LOCAL machine):
-#   ./scripts/migration/gcp/create-app-db.sh
+#   ./scripts/migration/gcp/drop-app-db.sh
 #
 # Connection types:
 #   direct — plain SSH using an IP address and private key
@@ -16,20 +16,20 @@
 #   1.  Loads saved values from config file (if present)
 #   2.  Prompts for connection type (direct SSH or IAP tunnel)
 #   3.  Prompts for all required values, showing previous answers as defaults
-#   4.  Saves non-secret values to config file on confirmation
+#   4.  Shows a confirmation summary with a typed-confirmation safety gate
 #   5.  Verifies connectivity to the VM
 #   6.  Verifies the Docker container is running and PostgreSQL is accepting connections
-#   7.  Creates the application user (idempotent)
-#   8.  Creates the application database owned by the app user (idempotent)
-#   9.  Grants CONNECT + all privileges on the database to the app user
-#   10. Grants schema, table, and sequence permissions + sets default privileges
-#   11. Prints a connection test command
+#   7.  Terminates all active connections to the target database
+#   8.  Drops the database (if it exists)
+#   9.  Drops the app user (if it exists and owns no other objects)
+#
+# SQL is piped via stdin (docker exec -i) to avoid quoting issues over IAP tunnels.
 #
 set -euo pipefail
 
 # ── Config file ───────────────────────────────────────────────────────────────
 CONF_DIR="${HOME}/.config/pg-migration"
-CONF_FILE="${CONF_DIR}/create-app-db.conf"
+CONF_FILE="${CONF_DIR}/drop-app-db.conf"
 
 PREV_CONNECTION_TYPE=""
 PREV_VM_NAME=""
@@ -50,7 +50,7 @@ load_config() {
 save_config() {
   mkdir -p "${CONF_DIR}"
   cat > "${CONF_FILE}" << CONF
-# pg-migration create-app-db — last used values (auto-generated, do not commit)
+# pg-migration drop-app-db — last used values (auto-generated, do not commit)
 # Passwords are never stored here.
 PREV_CONNECTION_TYPE="${CONNECTION_TYPE}"
 PREV_VM_NAME="${VM_NAME:-}"
@@ -156,7 +156,6 @@ vm_ssh() {
 }
 
 # vm_docker: used only for non-SQL docker commands (inspect, pg_isready, etc.)
-# Avoids use for psql -c to prevent quoting issues over IAP — use pg_exec/pg_query instead.
 vm_docker() {
   local quoted=""
   for arg in "$@"; do
@@ -165,7 +164,7 @@ vm_docker() {
   vm_ssh "${REMOTE_DOCKER_CMD}${quoted}"
 }
 
-# pg_exec: pipe SQL into psql via stdin (docker exec -i) to avoid all -c quoting issues.
+# pg_exec: pipe SQL into psql via stdin (docker exec -i) to avoid -c quoting issues.
 # Usage: pg_exec <database> <sql>
 pg_exec() {
   local database="$1"
@@ -204,12 +203,13 @@ load_config
 
 # ── Banner ────────────────────────────────────────────────────────────────────
 echo
-echo -e "${CYAN}======================================================${NC}"
-echo -e "${CYAN}  Create Application Database + User (PostgreSQL)     ${NC}"
-echo -e "${CYAN}======================================================${NC}"
+echo -e "${RED}======================================================${NC}"
+echo -e "${RED}  Drop Application Database + User (PostgreSQL)       ${NC}"
+echo -e "${RED}======================================================${NC}"
 echo
 echo "This script runs on your LOCAL machine."
-echo "It connects to a GCP Compute Engine VM to create the database."
+echo "It connects to a GCP Compute Engine VM to drop the database and user."
+echo -e "${RED}WARNING: This operation is IRREVERSIBLE. All data will be permanently lost.${NC}"
 [[ -f "${CONF_FILE}" ]] && info "Loaded saved values from ${CONF_FILE}"
 echo "Answer each prompt — press Enter to accept the shown default."
 echo
@@ -250,23 +250,26 @@ prompt CONTAINER_NAME    "Running Docker container name"  "${PREV_CONTAINER_NAME
 prompt POSTGRES_PASSWORD "postgres superuser password"    "" "true"
 
 echo
-echo -e "${YELLOW}── Application database ─────────────────────────────────${NC}"
-prompt DB_NAME     "Database name to create"             "${PREV_DB_NAME}"
-prompt DB_USER     "Application username"                "${PREV_DB_USER}"
-prompt DB_PASSWORD "Password for '${DB_USER}'"          "" "true"
+echo -e "${YELLOW}── Database and user to drop ────────────────────────────${NC}"
+prompt DB_NAME "Database name to drop"   "${PREV_DB_NAME}"
+prompt DB_USER "App username to drop"    "${PREV_DB_USER}"
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# ── Summary + typed confirmation safety gate ──────────────────────────────────
 echo
-echo -e "${YELLOW}── Summary ──────────────────────────────────────────────${NC}"
+echo -e "${RED}── DANGER ZONE ──────────────────────────────────────────${NC}"
 echo "  Connection  : ${CONNECTION_TYPE}"
 echo "  VM          : ${VM_LABEL}"
 echo "  Container   : ${CONTAINER_NAME}"
-echo "  Database    : ${DB_NAME}"
-echo "  App user    : ${DB_USER}"
+echo -e "  Database    : ${RED}${DB_NAME}${NC}  (will be permanently dropped)"
+echo -e "  App user    : ${RED}${DB_USER}${NC}  (will be permanently dropped)"
+echo
+echo -e "${RED}All data in '${DB_NAME}' will be lost. This cannot be undone.${NC}"
 echo
 
-read -r -p "$(echo -e "${CYAN}?${NC} Proceed? [y/N]: ")" CONFIRM
-[[ "$(echo "${CONFIRM}" | tr '[:upper:]' '[:lower:]')" == "y" ]] || { info "Aborted."; exit 0; }
+read -r -p "$(echo -e "${RED}?${NC} Type the database name to confirm drop: ")" CONFIRM_NAME
+if [[ "${CONFIRM_NAME}" != "${DB_NAME}" ]]; then
+  die "Confirmation did not match '${DB_NAME}'. Aborting."
+fi
 
 # ── Step 5 — Verify connectivity ─────────────────────────────────────────────
 info "Verifying connectivity to VM …"
@@ -300,44 +303,44 @@ vm_docker exec "${CONTAINER_NAME}" pg_isready -U postgres > /dev/null \
   || die "PostgreSQL inside '${CONTAINER_NAME}' is not ready."
 success "PostgreSQL is ready."
 
-# ── Step 7 — Create application user (idempotent) ────────────────────────────
-info "Creating user '${DB_USER}' …"
-USER_EXISTS=$(pg_query "postgres" \
-  "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}';")
-if [[ "${USER_EXISTS}" == "1" ]]; then
-  warn "User '${DB_USER}' already exists — updating password."
-  pg_exec "postgres" "ALTER USER \"${DB_USER}\" WITH PASSWORD '${DB_PASSWORD}';"
-  success "Password updated for '${DB_USER}'."
-else
-  pg_exec "postgres" "CREATE USER \"${DB_USER}\" WITH PASSWORD '${DB_PASSWORD}';"
-  success "User '${DB_USER}' created."
-fi
-
-# ── Step 8 — Create database (idempotent) ────────────────────────────────────
-info "Checking database '${DB_NAME}' …"
+# ── Step 7 — Terminate active connections ────────────────────────────────────
+info "Terminating active connections to '${DB_NAME}' …"
 DB_EXISTS=$(pg_query "postgres" \
   "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}';")
-if [[ "${DB_EXISTS}" == "1" ]]; then
-  warn "Database '${DB_NAME}' already exists — skipping creation."
+if [[ "${DB_EXISTS}" != "1" ]]; then
+  warn "Database '${DB_NAME}' does not exist — skipping connection termination."
 else
-  pg_exec "postgres" "CREATE DATABASE \"${DB_NAME}\" OWNER \"${DB_USER}\";"
-  success "Database '${DB_NAME}' created."
+  pg_exec "postgres" \
+    "SELECT pg_terminate_backend(pid)
+     FROM pg_stat_activity
+     WHERE datname = '${DB_NAME}'
+       AND pid <> pg_backend_pid();"
+  success "Active connections terminated."
+
+  # ── Step 8 — Drop the database ─────────────────────────────────────────────
+  info "Dropping database '${DB_NAME}' …"
+  pg_exec "postgres" "DROP DATABASE \"${DB_NAME}\";"
+  success "Database '${DB_NAME}' dropped."
 fi
 
-# ── Step 9 — Grant database-level privileges ──────────────────────────────────
-info "Granting database privileges to '${DB_USER}' …"
-pg_exec "postgres" "GRANT CONNECT ON DATABASE \"${DB_NAME}\" TO \"${DB_USER}\";"
-pg_exec "postgres" "GRANT ALL PRIVILEGES ON DATABASE \"${DB_NAME}\" TO \"${DB_USER}\";"
-success "Database privileges granted."
-
-# ── Step 10 — Grant schema / table / sequence privileges ─────────────────────
-info "Granting schema and object privileges …"
-pg_exec "${DB_NAME}" "GRANT ALL ON SCHEMA public TO \"${DB_USER}\";"
-pg_exec "${DB_NAME}" "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO \"${DB_USER}\";"
-pg_exec "${DB_NAME}" "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO \"${DB_USER}\";"
-pg_exec "${DB_NAME}" "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO \"${DB_USER}\";"
-pg_exec "${DB_NAME}" "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO \"${DB_USER}\";"
-success "Schema and object privileges granted."
+# ── Step 9 — Drop the app user ───────────────────────────────────────────────
+info "Checking user '${DB_USER}' …"
+USER_EXISTS=$(pg_query "postgres" \
+  "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}';")
+if [[ "${USER_EXISTS}" != "1" ]]; then
+  warn "User '${DB_USER}' does not exist — skipping."
+else
+  # Check if the user owns any remaining objects across all databases
+  OWNED_DBS=$(pg_query "postgres" \
+    "SELECT COUNT(*) FROM pg_database WHERE datdba = (SELECT oid FROM pg_roles WHERE rolname='${DB_USER}');")
+  if [[ "${OWNED_DBS}" != "0" ]]; then
+    warn "User '${DB_USER}' still owns ${OWNED_DBS} database(s) — cannot drop safely."
+    warn "Reassign ownership first, then re-run this script."
+  else
+    pg_exec "postgres" "DROP USER \"${DB_USER}\";"
+    success "User '${DB_USER}' dropped."
+  fi
+fi
 
 # ── Save config ───────────────────────────────────────────────────────────────
 save_config
@@ -346,11 +349,8 @@ success "Saved values to ${CONF_FILE}"
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo
 echo -e "${GREEN}======================================================${NC}"
-echo -e "${GREEN}  Database setup complete!${NC}"
+echo -e "${GREEN}  Drop complete!${NC}"
 echo -e "${GREEN}======================================================${NC}"
 echo
-echo "  Database : ${DB_NAME}"
-echo "  User     : ${DB_USER}"
-echo
-echo "Test connection from the VM:"
-echo "  PGPASSWORD='<password>' psql -h 127.0.0.1 -U ${DB_USER} -d ${DB_NAME}"
+echo "  Database : ${DB_NAME}  (dropped)"
+echo "  User     : ${DB_USER}  (dropped)"

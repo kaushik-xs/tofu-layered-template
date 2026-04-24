@@ -1,35 +1,31 @@
 #!/usr/bin/env bash
 #
-# create-app-db.sh  —  LOCAL machine script
+# list-dbs.sh  —  LOCAL machine script
 #
-# Creates an application database and user on a PostgreSQL Docker container
-# running on a GCP Compute Engine VM, then grants all necessary privileges.
+# Lists all PostgreSQL databases and the roles/users that have privileges
+# on each database, from a Docker container running on a GCP Compute Engine VM.
 #
 # Usage (run this on your LOCAL machine):
-#   ./scripts/migration/gcp/create-app-db.sh
+#   ./scripts/migration/gcp/list-dbs.sh
 #
 # Connection types:
 #   direct — plain SSH using an IP address and private key
 #   iap    — gcloud compute ssh with --tunnel-through-iap (no public IP needed)
 #
 # What this script does:
-#   1.  Loads saved values from config file (if present)
+#   1.  Loads saved values from config file (shared with create-app-db.sh)
 #   2.  Prompts for connection type (direct SSH or IAP tunnel)
 #   3.  Prompts for all required values, showing previous answers as defaults
-#   4.  Saves non-secret values to config file on confirmation
-#   5.  Verifies connectivity to the VM
-#   6.  Verifies the Docker container is running and PostgreSQL is accepting connections
-#   7.  Creates the application user (idempotent)
-#   8.  Creates the application database owned by the app user (idempotent)
-#   9.  Grants CONNECT + all privileges on the database to the app user
-#   10. Grants schema, table, and sequence permissions + sets default privileges
-#   11. Prints a connection test command
+#   4.  Verifies connectivity to the VM
+#   5.  Verifies the Docker container is running and PostgreSQL is accepting connections
+#   6.  Lists all databases with owner and size
+#   7.  For each non-system database, lists roles with their privileges
 #
 set -euo pipefail
 
 # ── Config file ───────────────────────────────────────────────────────────────
 CONF_DIR="${HOME}/.config/pg-migration"
-CONF_FILE="${CONF_DIR}/create-app-db.conf"
+CONF_FILE="${CONF_DIR}/create-app-db.conf"   # reuse same config as create-app-db.sh
 
 PREV_CONNECTION_TYPE=""
 PREV_VM_NAME=""
@@ -39,34 +35,15 @@ PREV_VM_USER=""
 PREV_VM_IP=""
 PREV_VM_SSH_KEY=""
 PREV_CONTAINER_NAME=""
-PREV_DB_NAME=""
-PREV_DB_USER=""
 
 load_config() {
   # shellcheck source=/dev/null
   [[ -f "${CONF_FILE}" ]] && source "${CONF_FILE}" || true
 }
 
-save_config() {
-  mkdir -p "${CONF_DIR}"
-  cat > "${CONF_FILE}" << CONF
-# pg-migration create-app-db — last used values (auto-generated, do not commit)
-# Passwords are never stored here.
-PREV_CONNECTION_TYPE="${CONNECTION_TYPE}"
-PREV_VM_NAME="${VM_NAME:-}"
-PREV_VM_ZONE="${VM_ZONE:-}"
-PREV_PROJECT_ID="${PROJECT_ID:-}"
-PREV_VM_USER="${VM_USER:-}"
-PREV_VM_IP="${VM_IP:-}"
-PREV_VM_SSH_KEY="${VM_SSH_KEY:-}"
-PREV_CONTAINER_NAME="${CONTAINER_NAME}"
-PREV_DB_NAME="${DB_NAME}"
-PREV_DB_USER="${DB_USER}"
-CONF
-}
-
 # ── Colour helpers ────────────────────────────────────────────────────────────
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'
+BOLD='\033[1m'; NC='\033[0m'
 info()    { echo -e "${CYAN}[INFO]${NC}  $*"; }
 success() { echo -e "${GREEN}[OK]${NC}    $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
@@ -155,43 +132,12 @@ vm_ssh() {
   fi
 }
 
-# vm_docker: used only for non-SQL docker commands (inspect, pg_isready, etc.)
-# Avoids use for psql -c to prevent quoting issues over IAP — use pg_exec/pg_query instead.
 vm_docker() {
   local quoted=""
   for arg in "$@"; do
     quoted="${quoted} $(printf '%q' "${arg}")"
   done
   vm_ssh "${REMOTE_DOCKER_CMD}${quoted}"
-}
-
-# pg_exec: pipe SQL into psql via stdin (docker exec -i) to avoid all -c quoting issues.
-# Usage: pg_exec <database> <sql>
-pg_exec() {
-  local database="$1"
-  local sql="$2"
-  local esc_pass esc_container esc_db
-  esc_pass=$(printf '%q' "${POSTGRES_PASSWORD}")
-  esc_container=$(printf '%q' "${CONTAINER_NAME}")
-  esc_db=$(printf '%q' "${database}")
-  printf '%s\n' "${sql}" | \
-    vm_ssh "${REMOTE_DOCKER_CMD} exec -i -e PGPASSWORD=${esc_pass} ${esc_container} \
-      psql -U postgres -d ${esc_db} --set ON_ERROR_STOP=on -q"
-}
-
-# pg_query: pipe SQL into psql and return trimmed scalar output.
-# Usage: result=$(pg_query <database> <sql>)
-pg_query() {
-  local database="$1"
-  local sql="$2"
-  local esc_pass esc_container esc_db
-  esc_pass=$(printf '%q' "${POSTGRES_PASSWORD}")
-  esc_container=$(printf '%q' "${CONTAINER_NAME}")
-  esc_db=$(printf '%q' "${database}")
-  printf '%s\n' "${sql}" | \
-    vm_ssh "${REMOTE_DOCKER_CMD} exec -i -e PGPASSWORD=${esc_pass} ${esc_container} \
-      psql -U postgres -d ${esc_db} -tA" \
-    2>/dev/null | tr -d '[:space:]' || true
 }
 
 # ── Dependency check ──────────────────────────────────────────────────────────
@@ -205,11 +151,11 @@ load_config
 # ── Banner ────────────────────────────────────────────────────────────────────
 echo
 echo -e "${CYAN}======================================================${NC}"
-echo -e "${CYAN}  Create Application Database + User (PostgreSQL)     ${NC}"
+echo -e "${CYAN}  List PostgreSQL Databases + Users                   ${NC}"
 echo -e "${CYAN}======================================================${NC}"
 echo
 echo "This script runs on your LOCAL machine."
-echo "It connects to a GCP Compute Engine VM to create the database."
+echo "It connects to a GCP Compute Engine VM to list databases and users."
 [[ -f "${CONF_FILE}" ]] && info "Loaded saved values from ${CONF_FILE}"
 echo "Answer each prompt — press Enter to accept the shown default."
 echo
@@ -249,26 +195,8 @@ echo -e "${YELLOW}── PostgreSQL Docker container ─────────
 prompt CONTAINER_NAME    "Running Docker container name"  "${PREV_CONTAINER_NAME}"
 prompt POSTGRES_PASSWORD "postgres superuser password"    "" "true"
 
+# ── Step 4 — Verify connectivity ──────────────────────────────────────────────
 echo
-echo -e "${YELLOW}── Application database ─────────────────────────────────${NC}"
-prompt DB_NAME     "Database name to create"             "${PREV_DB_NAME}"
-prompt DB_USER     "Application username"                "${PREV_DB_USER}"
-prompt DB_PASSWORD "Password for '${DB_USER}'"          "" "true"
-
-# ── Summary ───────────────────────────────────────────────────────────────────
-echo
-echo -e "${YELLOW}── Summary ──────────────────────────────────────────────${NC}"
-echo "  Connection  : ${CONNECTION_TYPE}"
-echo "  VM          : ${VM_LABEL}"
-echo "  Container   : ${CONTAINER_NAME}"
-echo "  Database    : ${DB_NAME}"
-echo "  App user    : ${DB_USER}"
-echo
-
-read -r -p "$(echo -e "${CYAN}?${NC} Proceed? [y/N]: ")" CONFIRM
-[[ "$(echo "${CONFIRM}" | tr '[:upper:]' '[:lower:]')" == "y" ]] || { info "Aborted."; exit 0; }
-
-# ── Step 5 — Verify connectivity ─────────────────────────────────────────────
 info "Verifying connectivity to VM …"
 vm_ssh "echo ok" > /dev/null || die "Cannot connect to VM. Check your connection details."
 success "VM connection confirmed."
@@ -284,7 +212,7 @@ else
 fi
 success "Docker accessible via: ${REMOTE_DOCKER_CMD}"
 
-# ── Step 6 — Verify container ────────────────────────────────────────────────
+# ── Step 5 — Verify container ────────────────────────────────────────────────
 info "Checking container '${CONTAINER_NAME}' on VM …"
 CONTAINER_STATE=$(vm_docker inspect -f "{{.State.Status}}" "${CONTAINER_NAME}" 2>/dev/null \
   | tr -d '[:space:]' || true)
@@ -300,57 +228,99 @@ vm_docker exec "${CONTAINER_NAME}" pg_isready -U postgres > /dev/null \
   || die "PostgreSQL inside '${CONTAINER_NAME}' is not ready."
 success "PostgreSQL is ready."
 
-# ── Step 7 — Create application user (idempotent) ────────────────────────────
-info "Creating user '${DB_USER}' …"
-USER_EXISTS=$(pg_query "postgres" \
-  "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}';")
-if [[ "${USER_EXISTS}" == "1" ]]; then
-  warn "User '${DB_USER}' already exists — updating password."
-  pg_exec "postgres" "ALTER USER \"${DB_USER}\" WITH PASSWORD '${DB_PASSWORD}';"
-  success "Password updated for '${DB_USER}'."
+# ── Step 6 — List all databases ───────────────────────────────────────────────
+echo
+echo -e "${BOLD}${YELLOW}══════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${YELLOW}  All Databases${NC}"
+echo -e "${BOLD}${YELLOW}══════════════════════════════════════════════════════${NC}"
+echo
+
+vm_docker exec -e PGPASSWORD="${POSTGRES_PASSWORD}" "${CONTAINER_NAME}" \
+  psql -U postgres -c \
+  "SELECT
+     datname        AS \"Database\",
+     pg_catalog.pg_get_userbyid(datdba) AS \"Owner\",
+     pg_catalog.pg_size_pretty(pg_catalog.pg_database_size(datname)) AS \"Size\",
+     datcollate     AS \"Collation\",
+     datctype       AS \"Ctype\"
+   FROM pg_database
+   ORDER BY datname;"
+
+# ── Step 7 — For each non-system database, list roles and privileges ──────────
+echo
+echo -e "${BOLD}${YELLOW}══════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${YELLOW}  Roles & Privileges Per Database${NC}"
+echo -e "${BOLD}${YELLOW}══════════════════════════════════════════════════════${NC}"
+
+DATABASES=$(vm_docker exec -e PGPASSWORD="${POSTGRES_PASSWORD}" "${CONTAINER_NAME}" \
+  psql -U postgres -tAc \
+  "SELECT datname FROM pg_database
+   WHERE datname NOT IN ('template0','template1','postgres')
+   ORDER BY datname;")
+
+if [[ -z "${DATABASES}" ]]; then
+  warn "No user-created databases found."
 else
-  pg_exec "postgres" "CREATE USER \"${DB_USER}\" WITH PASSWORD '${DB_PASSWORD}';"
-  success "User '${DB_USER}' created."
+  while IFS= read -r db; do
+    echo
+    echo -e "${CYAN}── Database: ${BOLD}${db}${NC}"
+    echo
+
+    # Roles with database-level ACL entries
+    vm_docker exec -e PGPASSWORD="${POSTGRES_PASSWORD}" "${CONTAINER_NAME}" \
+      psql -U postgres -d "${db}" -c \
+      "SELECT
+         r.rolname          AS \"Role\",
+         r.rolsuper         AS \"Superuser\",
+         r.rolinherit       AS \"Inherit\",
+         r.rolcreaterole    AS \"CreateRole\",
+         r.rolcreatedb      AS \"CreateDB\",
+         r.rolcanlogin      AS \"Login\",
+         ARRAY(
+           SELECT b.rolname
+           FROM pg_catalog.pg_auth_members m
+           JOIN pg_catalog.pg_roles b ON m.roleid = b.oid
+           WHERE m.member = r.oid
+         )                  AS \"MemberOf\"
+       FROM pg_catalog.pg_roles r
+       WHERE r.rolname NOT LIKE 'pg_%'
+       ORDER BY r.rolname;"
+
+    # Explicit CONNECT / GRANT entries on this database
+    echo -e "  ${YELLOW}Database-level ACLs:${NC}"
+    vm_docker exec -e PGPASSWORD="${POSTGRES_PASSWORD}" "${CONTAINER_NAME}" \
+      psql -U postgres -tAc \
+      "SELECT datacl FROM pg_database WHERE datname='${db}';" \
+      | tr ',' '\n' | tr -d '{}' | grep -v '^$' \
+      | awk -F= '{printf "    %-30s  privileges: %s\n", $1, $2}' || true
+
+  done <<< "${DATABASES}"
 fi
 
-# ── Step 8 — Create database (idempotent) ────────────────────────────────────
-info "Checking database '${DB_NAME}' …"
-DB_EXISTS=$(pg_query "postgres" \
-  "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}';")
-if [[ "${DB_EXISTS}" == "1" ]]; then
-  warn "Database '${DB_NAME}' already exists — skipping creation."
-else
-  pg_exec "postgres" "CREATE DATABASE \"${DB_NAME}\" OWNER \"${DB_USER}\";"
-  success "Database '${DB_NAME}' created."
-fi
+# ── Step 8 — All roles overview ───────────────────────────────────────────────
+echo
+echo -e "${BOLD}${YELLOW}══════════════════════════════════════════════════════${NC}"
+echo -e "${BOLD}${YELLOW}  All PostgreSQL Roles (Cluster-Wide)${NC}"
+echo -e "${BOLD}${YELLOW}══════════════════════════════════════════════════════${NC}"
+echo
 
-# ── Step 9 — Grant database-level privileges ──────────────────────────────────
-info "Granting database privileges to '${DB_USER}' …"
-pg_exec "postgres" "GRANT CONNECT ON DATABASE \"${DB_NAME}\" TO \"${DB_USER}\";"
-pg_exec "postgres" "GRANT ALL PRIVILEGES ON DATABASE \"${DB_NAME}\" TO \"${DB_USER}\";"
-success "Database privileges granted."
-
-# ── Step 10 — Grant schema / table / sequence privileges ─────────────────────
-info "Granting schema and object privileges …"
-pg_exec "${DB_NAME}" "GRANT ALL ON SCHEMA public TO \"${DB_USER}\";"
-pg_exec "${DB_NAME}" "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO \"${DB_USER}\";"
-pg_exec "${DB_NAME}" "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO \"${DB_USER}\";"
-pg_exec "${DB_NAME}" "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO \"${DB_USER}\";"
-pg_exec "${DB_NAME}" "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO \"${DB_USER}\";"
-success "Schema and object privileges granted."
-
-# ── Save config ───────────────────────────────────────────────────────────────
-save_config
-success "Saved values to ${CONF_FILE}"
+vm_docker exec -e PGPASSWORD="${POSTGRES_PASSWORD}" "${CONTAINER_NAME}" \
+  psql -U postgres -c \
+  "SELECT
+     rolname       AS \"Role\",
+     rolsuper      AS \"Super\",
+     rolcreatedb   AS \"CreateDB\",
+     rolcreaterole AS \"CreateRole\",
+     rolcanlogin   AS \"Login\",
+     rolconnlimit  AS \"ConnLimit\",
+     rolvaliduntil AS \"ValidUntil\"
+   FROM pg_roles
+   WHERE rolname NOT LIKE 'pg_%'
+   ORDER BY rolcanlogin DESC, rolname;"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo
 echo -e "${GREEN}======================================================${NC}"
-echo -e "${GREEN}  Database setup complete!${NC}"
+echo -e "${GREEN}  Done.${NC}"
 echo -e "${GREEN}======================================================${NC}"
 echo
-echo "  Database : ${DB_NAME}"
-echo "  User     : ${DB_USER}"
-echo
-echo "Test connection from the VM:"
-echo "  PGPASSWORD='<password>' psql -h 127.0.0.1 -U ${DB_USER} -d ${DB_NAME}"
