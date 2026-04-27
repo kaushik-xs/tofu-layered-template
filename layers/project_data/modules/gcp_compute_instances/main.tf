@@ -9,9 +9,10 @@ locals {
 resource "google_compute_instance" "this" {
   for_each = local.instances
 
-  name         = try(each.value.name, each.key)
-  machine_type = try(each.value.machine_type, "e2-medium")
-  zone         = try(each.value.zone, var.default_zone)
+  name                      = try(each.value.name, each.key)
+  machine_type              = try(each.value.machine_type, "e2-medium")
+  zone                      = try(each.value.zone, var.default_zone)
+  allow_stopping_for_update = true
 
   boot_disk {
     initialize_params {
