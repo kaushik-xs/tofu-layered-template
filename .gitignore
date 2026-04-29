@@ -22,3 +22,5 @@
 docker-images/*
 
 creds
+
+*.zip
