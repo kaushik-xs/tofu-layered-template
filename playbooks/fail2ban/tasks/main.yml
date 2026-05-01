@@ -17,7 +17,7 @@
       findtime = 10m
       maxretry = 5
       banaction = iptables-multiport
-      backend = auto
+      backend = polling
       ignoreip = 127.0.0.1/8 ::1 172.17.0.0/16
 
       # ----------------------------
