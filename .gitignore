@@ -24,3 +24,4 @@ docker-images/*
 creds
 
 *.zip
+opentofu-nuke-secrets_*

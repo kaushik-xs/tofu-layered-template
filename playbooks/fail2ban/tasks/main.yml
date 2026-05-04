@@ -37,7 +37,7 @@
       enabled  = true
       port     = 22
       backend  = systemd
-      maxretry = 5
+      maxretry = 3
       bantime  = 24h
 
       # ----------------------------
@@ -61,8 +61,8 @@
       filter   = caddy-404
       logpath  = /var/log/caddy/*.access.log
       findtime = 5m
-      maxretry = 15
-      bantime  = 1h
+      maxretry = 25
+      bantime  = 30m
 
       # abuse / auth / rate-limit
       [caddy-abuse]
@@ -108,6 +108,27 @@
                     ^.*"remote_ip":"<HOST>".*"status":(401|403|429)
         ignoreregex =
   register: fail2ban_caddy_filters
+
+# Connection user home: /home/<user>/fail2ban (root → /root/fail2ban; there is no /home/root by default)
+- name: Set fail2ban ops dir under connection user home
+  ansible.builtin.set_fact:
+    fail2ban_ops_home: "{{ '/root' if ansible_user == 'root' else '/home/' ~ ansible_user }}"
+
+- name: Ensure fail2ban ops directory exists
+  ansible.builtin.file:
+    path: "{{ fail2ban_ops_home }}/fail2ban"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0750"
+
+- name: Deploy fail2ban unban Makefile
+  ansible.builtin.copy:
+    src: Makefile
+    dest: "{{ fail2ban_ops_home }}/fail2ban/Makefile"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0644"
 
 # SERVICE
 - name: Ensure fail2ban is enabled and running
