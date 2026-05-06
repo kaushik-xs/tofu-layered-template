@@ -37,8 +37,8 @@
       enabled  = true
       port     = 22
       backend  = systemd
-      maxretry = 3
-      bantime  = 24h
+      maxretry = 5
+      bantime  = 1h
 
       # ----------------------------
       # CADDY JAILS
@@ -50,9 +50,9 @@
       port     = http,https
       filter   = caddy-dos
       logpath  = /var/log/caddy/*.access.log
-      findtime = 10s
-      maxretry = 50
-      bantime  = 10m
+      findtime = 30s
+      maxretry = 300
+      bantime  = 5m
 
       # 404 scanners
       [caddy-404]
@@ -61,7 +61,7 @@
       filter   = caddy-404
       logpath  = /var/log/caddy/*.access.log
       findtime = 5m
-      maxretry = 25
+      maxretry = 50
       bantime  = 30m
 
       # abuse / auth / rate-limit
@@ -71,7 +71,7 @@
       filter   = caddy-abuse
       logpath  = /var/log/caddy/*.log
       findtime = 10m
-      maxretry = 10
+      maxretry = 300
       bantime  = 2h
   register: fail2ban_jail_local
 
@@ -85,12 +85,12 @@
     mode: "0644"
     content: "{{ item.content }}"
   loop:
-    # DOS (counts all requests)
+    # DOS (counts all requests — pure volumetric check)
     - name: caddy-dos
       content: |
         [Definition]
         failregex = ^.*"remote_ip":"<HOST>"
-        ignoreregex = "status":(200|301|302)
+        ignoreregex =
 
     # 404 scanners
     - name: caddy-404
