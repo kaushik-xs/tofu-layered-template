@@ -44,14 +44,14 @@
       # CADDY JAILS
       # ----------------------------
 
-      # DOS / burst traffic
+      # DOS / burst traffic (API requests only; static assets excluded in filter)
       [caddy-dos]
       enabled  = true
       port     = http,https
       filter   = caddy-dos
       logpath  = /var/log/caddy/*.access.log
-      findtime = 30s
-      maxretry = 300
+      findtime = 60s
+      maxretry = 500
       bantime  = 5m
 
       # 404 scanners
@@ -85,12 +85,12 @@
     mode: "0644"
     content: "{{ item.content }}"
   loop:
-    # DOS (counts all requests — pure volumetric check)
+    # DOS (counts non-asset requests only — ignores static files to avoid false positives with CGNAT users)
     - name: caddy-dos
       content: |
         [Definition]
         failregex = ^.*"remote_ip":"<HOST>"
-        ignoreregex =
+        ignoreregex = "uri":"[^"]*\.(js|css|woff2?|ttf|eot|svg|png|jpe?g|gif|ico|webp|map|json|txt|xml|pdf)(\?[^"]*)?",
 
     # 404 scanners
     - name: caddy-404
