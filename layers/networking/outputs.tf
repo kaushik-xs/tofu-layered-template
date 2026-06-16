@@ -9,10 +9,12 @@ output "network_topology_enabled" {
 output "aws_networking" {
   description = "VPC and subnet ids for var.aws_region when AWS topology is enabled and populated."
   value = local.aws_networking_enabled ? {
-    region       = module.aws_networking[0].region
-    vpc_ids      = module.aws_networking[0].vpc_ids
-    subnet_ids   = module.aws_networking[0].subnet_ids
-    subnet_cidrs = module.aws_networking[0].subnet_cidrs
+    region              = module.aws_networking[0].region
+    vpc_ids             = module.aws_networking[0].vpc_ids
+    subnet_ids          = module.aws_networking[0].subnet_ids
+    subnet_cidrs        = module.aws_networking[0].subnet_cidrs
+    nat_gateway_enabled = module.aws_networking[0].nat_gateway_enabled
+    nat_gateways        = module.aws_networking[0].nat_gateways
   } : null
 }
 

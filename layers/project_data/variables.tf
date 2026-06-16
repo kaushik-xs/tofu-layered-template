@@ -23,6 +23,12 @@ variable "aws_region" {
   type        = string
 }
 
+variable "aws_ubuntu_ami_name_filter" {
+  description = "Name filter for the Ubuntu LTS AMI lookup in aws_compute_instances. Override when targeting a different Ubuntu release/path."
+  type        = string
+  default     = "ubuntu/images/hvm-ssd*/ubuntu-resolute-26.04-amd64-server-*"
+}
+
 variable "aws_profile" {
   description = "AWS CLI profile name; must match AWS_PROFILE used with scripts/tofu-layer-run.sh. For project_data the script exports TF_VAR_aws_profile=$AWS_PROFILE (not set in tfvars). If you run tofu without the script, set TF_VAR_aws_profile to the same value as AWS_PROFILE."
   type        = string
@@ -161,8 +167,8 @@ variable "computes" {
     For addressing: set private_ip to a literal address, or set private_ip_host_index to compute the address with
     cidrhost() from networking outputs (aws_networking.subnet_cidrs / gcp_networking.subnetwork_cidrs). If both are
     omitted, the cloud assigns an address. Explicit private_ip wins when non-empty.
-    Optional per-instance os: AWS uses amazon-linux-2023 (default) or ubuntu-server-lts (24.04 LTS); set ami_id to override.
-    GCP uses debian-12 (default) or ubuntu-server-lts (24.04 LTS); set boot_disk_image to override.
+    Optional per-instance os: AWS uses amazon-linux-2023 (default) or ubuntu-server-lts (26.04 LTS); set ami_id to override.
+    GCP uses debian-12 (default) or ubuntu-server-lts (26.04 LTS); set boot_disk_image to override.
     Optional external_static_ip_key: logical name of a reserved address from the networking layer
     (external_static_ips / Elastic IPs or GCP regional addresses). Must match a key in networking outputs
     aws_external_static_ips.allocation_ids or gcp_external_static_ips.regional_addresses.

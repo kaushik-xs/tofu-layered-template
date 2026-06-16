@@ -23,6 +23,15 @@ variable "aws_region" {
   type        = string
 }
 
+variable "aws_enable_nat_gateway" {
+  description = <<-EOT
+    Default when network_topology.aws.enable_nat_gateway is omitted: create one NAT gateway per VPC
+    (in a public subnet) so private-subnet VMs can reach the internet without a public IP.
+  EOT
+  type        = bool
+  default     = true
+}
+
 variable "gcp_project_id" {
   description = "GCP project ID used by this layer."
   type        = string
@@ -128,6 +137,8 @@ variable "network_topology" {
     gcp_ssh_ingress_source_ranges at the root of this file is used (default []).
     Optional network_topology.gcp.enable_cloud_nat (bool): when false, do not create Cloud NAT; when omitted,
     gcp_enable_cloud_nat at the root of this file is used (default true).
+    Optional network_topology.aws.enable_nat_gateway (bool): when false, do not create AWS NAT gateways; when omitted,
+    aws_enable_nat_gateway at the root of this file is used (default true).
   EOT
   type        = any
   default     = {}

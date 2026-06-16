@@ -5,6 +5,14 @@ locals {
     for k, v in local.instances : k => v
     if try(v.external_static_ip_key, null) != null && trimspace(tostring(v.external_static_ip_key)) != ""
   }
+
+  # Per-instance Ubuntu AMI name filter, falling back to the module default. Deduped to a set so
+  # instances sharing a filter share a single data.aws_ami lookup. Only instances that resolve their
+  # AMI through the Ubuntu lookup (os = ubuntu-server-lts, no ami_id override) are included.
+  ubuntu_ami_name_filters = toset([
+    for _, v in local.instances : try(v.ubuntu_ami_name_filter, var.ubuntu_ami_name_filter)
+    if try(v.os, "amazon-linux-2023") == "ubuntu-server-lts" && (try(v.ami_id, null) == null || trimspace(tostring(v.ami_id)) == "")
+  ])
 }
 
 data "aws_ami" "amazon_linux_2023" {
@@ -23,15 +31,16 @@ data "aws_ami" "amazon_linux_2023" {
   }
 }
 
-# Ubuntu Server 24.04 LTS (Noble); update the name filter when a new LTS becomes the default you want.
+# Ubuntu Server 26.04 LTS (Resolute); update the name filter (module default or per-instance) for a different release.
+# Keyed by the name filter string so instances sharing a filter reuse one lookup.
 data "aws_ami" "ubuntu_lts" {
-  count       = length(local.instances) > 0 ? 1 : 0
+  for_each    = local.ubuntu_ami_name_filters
   most_recent = true
   owners      = ["099720109477"]
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-noble-24.04-amd64-server-*"]
+    values = [each.value]
   }
 
   filter {
@@ -67,7 +76,7 @@ resource "aws_instance" "this" {
 
   ami = coalesce(
     try(each.value.ami_id, null) != null && trimspace(tostring(each.value.ami_id)) != "" ? each.value.ami_id : null,
-    try(each.value.os, "amazon-linux-2023") == "ubuntu-server-lts" ? data.aws_ami.ubuntu_lts[0].id : data.aws_ami.amazon_linux_2023[0].id
+    try(each.value.os, "amazon-linux-2023") == "ubuntu-server-lts" ? data.aws_ami.ubuntu_lts[try(each.value.ubuntu_ami_name_filter, var.ubuntu_ami_name_filter)].id : data.aws_ami.amazon_linux_2023[0].id
   )
   instance_type = try(each.value.instance_type, "t3.micro")
   subnet_id     = data.aws_subnet.instance[each.key].id
@@ -135,7 +144,7 @@ resource "null_resource" "instance_local_exec" {
         name               = try(each.value.name, each.key)
         region             = var.region
         instance_id        = aws_instance.this[each.key].id
-        ansible_user       = (
+        ansible_user = (
           try(each.value.ansible_user, null) != null && trimspace(tostring(each.value.ansible_user)) != "" ?
           trimspace(tostring(each.value.ansible_user)) :
           try(each.value.os, "amazon-linux-2023") == "ubuntu-server-lts" ? "ubuntu" : "ec2-user"

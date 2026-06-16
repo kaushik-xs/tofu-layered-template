@@ -18,6 +18,10 @@ gcp_region     = "us-central1"
 # Optional: default for Cloud NAT when network_topology.gcp.enable_cloud_nat is not set (default true).
 # gcp_enable_cloud_nat = false
 
+# Optional: default for AWS NAT gateways when network_topology.aws.enable_nat_gateway is not set (default true).
+# Creates one NAT gateway + Elastic IP per VPC that has both a public and a private subnet.
+# aws_enable_nat_gateway = false
+
 # Optional: CIDRs allowed to reach DB ports (gcp_db_ingress_ports) on VMs tagged with gcp_db_target_tags.
 # Typically the public-subnet CIDR(s) where app VMs live. Empty = no rule created.
 # gcp_db_ingress_source_ranges = ["10.10.1.0/24"]
@@ -47,6 +51,9 @@ gcp_region     = "us-central1"
 network_topology = {
   aws = {
     enabled = true
+    # Optional: set false to skip NAT gateways (private subnets then have no outbound internet).
+    # If omitted, uses aws_enable_nat_gateway at top (default true).
+    # enable_nat_gateway = false
     regions = {
       "us-east-1" = {
         vpcs = {
