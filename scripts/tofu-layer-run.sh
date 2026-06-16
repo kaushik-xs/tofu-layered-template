@@ -21,8 +21,11 @@
 #
 # Required env:
 #   AWS_PROFILE        Selects terraform.<profile>.<workspace>.tfvars in layers/<layer_name>/ (backend + -var-file).
+#
+# Optional env (GCP):
 #   GOOGLE_CREDENTIALS Path to a GCP service account JSON key, or the JSON contents (Google provider / ADC).
-#                      Exported for OpenTofu; also sets GOOGLE_APPLICATION_CREDENTIALS when the value is a readable file.
+#                      Optional — omit for AWS-only layers/workspaces. When set, exported for OpenTofu;
+#                      also sets GOOGLE_APPLICATION_CREDENTIALS when the value is a readable file.
 #
 # Required args:
 #   <layer_name>   Directory name under layers/ (e.g. global_identity, project)
@@ -84,19 +87,20 @@ if [[ ! -d "${LAYER_DIR}" ]]; then
 fi
 
 : "${AWS_PROFILE:?AWS_PROFILE is required (selects terraform.<profile>.<workspace>.tfvars)}"
-: "${GOOGLE_CREDENTIALS:?GOOGLE_CREDENTIALS is required (GCP service account key path or JSON; used by the Google provider)}"
-
-export GOOGLE_CREDENTIALS
-# ADC and many tools expect a file path; set when GOOGLE_CREDENTIALS is a readable file.
-if [[ -f "${GOOGLE_CREDENTIALS}" && -r "${GOOGLE_CREDENTIALS}" ]]; then
-  export GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_CREDENTIALS}"
-fi
+# GOOGLE_CREDENTIALS is optional: this repo can target AWS-only or multi-cloud.
+# When unset, the Google provider is not configured by this script.
+GOOGLE_CREDENTIALS="${GOOGLE_CREDENTIALS:-}"
 
 GOOGLE_CREDENTIALS_CLIENT_EMAIL=""
-if [[ -f "${GOOGLE_CREDENTIALS}" && -r "${GOOGLE_CREDENTIALS}" ]]; then
-  GOOGLE_CREDENTIALS_CLIENT_EMAIL="$(jq -r '.client_email // empty' "${GOOGLE_CREDENTIALS}" 2>/dev/null || printf '')"
-else
-  GOOGLE_CREDENTIALS_CLIENT_EMAIL="$(printf '%s' "${GOOGLE_CREDENTIALS}" | jq -r '.client_email // empty' 2>/dev/null || printf '')"
+if [[ -n "${GOOGLE_CREDENTIALS}" ]]; then
+  export GOOGLE_CREDENTIALS
+  # ADC and many tools expect a file path; set when GOOGLE_CREDENTIALS is a readable file.
+  if [[ -f "${GOOGLE_CREDENTIALS}" && -r "${GOOGLE_CREDENTIALS}" ]]; then
+    export GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_CREDENTIALS}"
+    GOOGLE_CREDENTIALS_CLIENT_EMAIL="$(jq -r '.client_email // empty' "${GOOGLE_CREDENTIALS}" 2>/dev/null || printf '')"
+  else
+    GOOGLE_CREDENTIALS_CLIENT_EMAIL="$(printf '%s' "${GOOGLE_CREDENTIALS}" | jq -r '.client_email // empty' 2>/dev/null || printf '')"
+  fi
 fi
 
 TFVARS_PATH="${LAYER_DIR}/terraform.${AWS_PROFILE}.${WORKSPACE_NAME}.tfvars"
@@ -161,7 +165,9 @@ _tofu_layer_run_print_summary() {
   fi
 
   local _gcp_disp="${GOOGLE_CREDENTIALS}"
-  if ((${#_gcp_disp} > 72)); then
+  if [[ -z "${_gcp_disp}" ]]; then
+    _gcp_disp="(not set — GCP disabled)"
+  elif ((${#_gcp_disp} > 72)); then
     _gcp_disp="${_gcp_disp:0:69}..."
   fi
 

@@ -26,11 +26,13 @@ variable "aws_region" {
 variable "gcp_project_id" {
   description = "GCP project ID used by this layer."
   type        = string
+  default     = null
 }
 
 variable "gcp_region" {
   description = "GCP region used by this layer."
   type        = string
+  default     = null
 }
 
 variable "gcp_enable_iap_ssh_firewall" {

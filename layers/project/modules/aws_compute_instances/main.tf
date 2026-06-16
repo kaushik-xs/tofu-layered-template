@@ -78,6 +78,11 @@ resource "aws_instance" "this" {
 
   user_data = try(each.value.user_data, null)
 
+  root_block_device {
+    volume_size = try(each.value.root_volume_size_gb, 20)
+    volume_type = try(each.value.root_volume_type, "gp3")
+  }
+
   tags = merge(
     {
       Name = try(each.value.name, each.key)
@@ -130,7 +135,7 @@ resource "null_resource" "instance_local_exec" {
         name               = try(each.value.name, each.key)
         region             = var.region
         instance_id        = aws_instance.this[each.key].id
-        ansible_user       = (
+        ansible_user = (
           try(each.value.ansible_user, null) != null && trimspace(tostring(each.value.ansible_user)) != "" ?
           trimspace(tostring(each.value.ansible_user)) :
           try(each.value.os, "amazon-linux-2023") == "ubuntu-server-lts" ? "ubuntu" : "ec2-user"

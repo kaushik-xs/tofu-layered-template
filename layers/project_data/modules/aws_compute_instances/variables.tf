@@ -10,6 +10,7 @@ variable "instances" {
     Optional: vpc_name / network_name (tags), private_ip (static address in subnet; may be pre-resolved from
     private_ip_host_index at the project root), os (amazon-linux-2023 | ubuntu-server-lts), ami_id (overrides os),
     instance_type, security_group_ids (defaults to VPC default SG if empty), user_data, tags.
+    Optional root_volume_size_gb (root EBS size in GiB, default 20) and root_volume_type (default gp3).
     ubuntu-server-lts resolves to Ubuntu Server 24.04 LTS (Noble) x86_64 in this region.
     Optional local_exec: run a local-exec provisioner after the instance exists and after any Elastic IP association.
     Set local_exec.command; templatestring supplies public_ip, nat_ip, private_ip, name, region, instance_id,

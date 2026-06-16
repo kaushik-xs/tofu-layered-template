@@ -31,11 +31,13 @@ variable "aws_profile" {
 variable "gcp_project_id" {
   description = "GCP project ID used by this layer."
   type        = string
+  default     = null
 }
 
 variable "gcp_region" {
   description = "GCP region used by this layer."
   type        = string
+  default     = null
 }
 
 variable "gcp_compute_ssh_public_key_path" {
