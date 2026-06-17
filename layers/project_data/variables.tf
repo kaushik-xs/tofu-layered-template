@@ -56,6 +56,18 @@ variable "gcp_compute_ssh_public_key_path" {
   default     = ""
 }
 
+variable "aws_compute_ssh_public_key_path" {
+  description = <<-EOT
+    Optional path to an SSH *public* key file (e.g. ~/.ssh/id_rsa.pub). When set, a managed aws_key_pair is created
+    and attached to every AWS instance via key_name, so SSH (and the ansible local_exec provisioner) authenticates at
+    first boot. Pass the matching private key to scripts/ssh-ec2.sh. If you only have a .pem, derive the .pub once with
+    `ssh-keygen -y -f key.pem > key.pem.pub`. A per-instance key_name in computes.aws.instances overrides this.
+    Empty = no key pair attached (you must set per-instance key_name or you will get Permission denied (publickey)).
+  EOT
+  type        = string
+  default     = ""
+}
+
 variable "global_identity_workspace" {
   description = "OpenTofu workspace name whose state project_data should read for global_identity (must match the second argument to scripts/tofu-layer-run.sh for that layer; e.g. global)."
   type        = string

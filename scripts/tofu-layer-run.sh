@@ -36,6 +36,10 @@
 #   -show-sensitive  Pass -show-sensitive to tofu plan/apply/destroy/output (reveals redacted sensitive values)
 #
 # Optional env:
+#   AWS_SSH_KEY=<path>                  Path to a private .pem (or a .pub). project/project_data only: the script
+#                                       derives the .pub (ssh-keygen -y) if missing and exports
+#                                       TF_VAR_aws_compute_ssh_public_key_path so a key pair is attached to every
+#                                       AWS instance (key_name). Per-instance key_name in tfvars overrides it.
 #   TF_STATE_DYNAMODB_TABLE=<table>     Enable state locking with DynamoDB (backend-config)
 #   TF_DATA_DIR=<path>                  Override local OpenTofu data dir (default: <layer_dir>/.terraform/terraform_<AWS_PROFILE>_<workspace>)
 #   TOFU_FORCE_RECONFIGURE=1            Always run `tofu init -reconfigure` (ignore fingerprint)
@@ -318,6 +322,25 @@ export TF_DATA_DIR="${TF_DATA_DIR:-${PWD}/.terraform/terraform_${AWS_PROFILE}_${
 # project and project_data build remote state keys as terraform_<AWS_PROFILE>.tfstate; pass profile into OpenTofu.
 if [[ "${LAYER_NAME}" == "project" ]] || [[ "${LAYER_NAME}" == "project_data" ]]; then
   export TF_VAR_aws_profile="${AWS_PROFILE}"
+fi
+
+# AWS SSH key pair: when AWS_SSH_KEY points at a private .pem (or a .pub), resolve/derive the matching public key and
+# pass it to OpenTofu as TF_VAR_aws_compute_ssh_public_key_path. project/project_data create an aws_key_pair from it
+# and attach key_name to every AWS instance, so SSH works at first boot. Per-instance key_name overrides this.
+if { [[ "${LAYER_NAME}" == "project" ]] || [[ "${LAYER_NAME}" == "project_data" ]]; } && [[ -n "${AWS_SSH_KEY:-}" ]]; then
+  _ssh_key="${AWS_SSH_KEY/#\~/${HOME}}"
+  if [[ "${_ssh_key}" == *.pub ]]; then
+    _ssh_pub="${_ssh_key}"
+  else
+    _ssh_pub="${_ssh_key}.pub"
+    if [[ ! -f "${_ssh_pub}" ]]; then
+      [[ -f "${_ssh_key}" ]] || { echo "AWS_SSH_KEY not found: ${_ssh_key}" >&2; exit 1; }
+      echo "Deriving public key from private key: ${_ssh_pub}"
+      ssh-keygen -y -f "${_ssh_key}" > "${_ssh_pub}"
+    fi
+  fi
+  [[ -f "${_ssh_pub}" ]] || { echo "SSH public key not found: ${_ssh_pub}" >&2; exit 1; }
+  export TF_VAR_aws_compute_ssh_public_key_path="${_ssh_pub}"
 fi
 
 TOFU_VARFILE_ARGS=("-var-file=terraform.${AWS_PROFILE}.${WORKSPACE_NAME}.tfvars")

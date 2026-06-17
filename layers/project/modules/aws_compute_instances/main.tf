@@ -71,6 +71,15 @@ data "aws_security_group" "vpc_default" {
   }
 }
 
+# Managed key pair from a public key on disk. Created only when ssh_public_key_path is set; attached to every
+# instance below via key_name so SSH/ansible authenticate at first boot. key_pair_name must be unique per region/account.
+resource "aws_key_pair" "this" {
+  count = trimspace(var.ssh_public_key_path) != "" ? 1 : 0
+
+  key_name   = var.key_pair_name
+  public_key = chomp(file(pathexpand(var.ssh_public_key_path)))
+}
+
 resource "aws_instance" "this" {
   for_each = local.instances
 
@@ -82,6 +91,13 @@ resource "aws_instance" "this" {
   subnet_id     = data.aws_subnet.instance[each.key].id
 
   private_ip = try(each.value.private_ip, null)
+
+  # Per-instance key_name wins; otherwise the module-managed key pair (when ssh_public_key_path is set); else none.
+  key_name = (
+    try(each.value.key_name, null) != null && trimspace(tostring(each.value.key_name)) != "" ?
+    each.value.key_name :
+    (length(aws_key_pair.this) > 0 ? aws_key_pair.this[0].key_name : null)
+  )
 
   vpc_security_group_ids = length(try(each.value.security_group_ids, [])) > 0 ? each.value.security_group_ids : [data.aws_security_group.vpc_default[each.key].id]
 

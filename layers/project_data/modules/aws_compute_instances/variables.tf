@@ -40,3 +40,23 @@ variable "elastic_ip_allocation_ids" {
   type        = map(string)
   default     = {}
 }
+
+variable "ssh_public_key_path" {
+  description = <<-EOT
+    Optional path to an SSH *public* key file (e.g. ~/.ssh/id_rsa.pub). When set, a managed aws_key_pair is created
+    from it and attached to every instance via key_name, so SSH (and the ansible local_exec provisioner) works at
+    first boot. The matching private key is what you pass to scripts/ssh-ec2.sh. A per-instance key_name overrides
+    this. When empty, no key pair is attached unless an instance sets its own key_name.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "key_pair_name" {
+  description = <<-EOT
+    Name for the managed aws_key_pair created from ssh_public_key_path. Must be unique per region/account, so include
+    the workspace and layer in the name to avoid collisions across workspaces. Ignored when ssh_public_key_path is empty.
+  EOT
+  type        = string
+  default     = ""
+}

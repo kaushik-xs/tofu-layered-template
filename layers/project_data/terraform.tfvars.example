@@ -144,6 +144,10 @@ gcp_region     = "us-central1"
 # Optional: GCP only — path to SSH public key; merged into each VM metadata so ansible/ssh can use the matching private key.
 # gcp_compute_ssh_public_key_path = "~/.ssh/id_rsa.pub"
 
+# Optional: AWS — attach an SSH key pair to every instance so SSH works at first boot. Set via the runner, not tfvars:
+#   AWS_SSH_KEY=~/.ssh/your-key.pem ./scripts/tofu-layer-run.sh project_data apply <profile> <workspace>
+# The script derives the .pub and exports TF_VAR_aws_compute_ssh_public_key_path. Per-instance key_name still overrides.
+
 # Networking layer remote state (same bucket layout as scripts/tofu-layer-run.sh). This layer reads subnet and network
 # ids from networking outputs when computes.aws.enabled or computes.gcp.enabled is true. Use the same
 # tf_state_key prefix as the networking layer. Leave networking_workspace empty to use terraform.workspace so project_data

@@ -101,6 +101,30 @@ prompt_choice() {
   printf -v "$var_name" '%s' "${options[$(( value - 1 ))]}"
 }
 
+# Refresh a stale host key. EC2 instances rebuilt by tofu (destroy/apply) keep their
+# Elastic IP but get a brand-new SSH host key at first boot, so a cached known_hosts
+# entry no longer matches and ssh aborts with "REMOTE HOST IDENTIFICATION HAS CHANGED".
+# If a cached entry exists for HOST, show it and offer to drop it before connecting.
+# Guarded by a prompt so we don't silently weaken MITM protection.
+refresh_known_host() {
+  local host="$1"
+  [[ -z "${host}" ]] && return 0
+  local known="${HOME}/.ssh/known_hosts"
+  [[ -f "${known}" ]] || return 0
+  ssh-keygen -F "${host}" -f "${known}" >/dev/null 2>&1 || return 0  # no cached entry
+
+  warn "A host key for '${host}' is already cached in ${known}."
+  warn "If this instance was rebuilt (tofu destroy/apply), the key changed and ssh will refuse to connect."
+  local reply
+  read -r -p "$(echo -e "${CYAN}?${NC} Remove the cached host key for ${host} and trust the new one? [y/N]: ")" reply
+  if [[ "$(echo "${reply:-n}" | tr '[:upper:]' '[:lower:]')" == "y" ]]; then
+    ssh-keygen -R "${host}" -f "${known}" >/dev/null 2>&1 || true
+    success "Removed cached host key for ${host}; it will be re-trusted on connect."
+  else
+    info "Keeping cached host key. If it has changed, the connection will fail."
+  fi
+}
+
 # Expand leading ~, verify the key exists, and enforce safe perms (ssh refuses
 # world-readable private keys). Writes the expanded path back to the named var.
 ensure_key() {
@@ -114,6 +138,34 @@ ensure_key() {
     chmod 600 "$key"
   fi
   printf -v "$key_var" '%s' "$key"
+}
+
+# Fetch a layer's `aws_instances` output as JSON. Prints the JSON array on success,
+# nothing on failure. Reuses AWS_PROFILE / WORKSPACE / GOOGLE_CREDENTIALS from the env.
+# Used both for the SSH target layer and (cross-layer) for bastion candidates, since a
+# private-subnet VM often lives in a `_data` layer while its public bastion is in the
+# sibling runtime layer (e.g. project_data target → project bastion).
+fetch_aws_instances() {
+  local layer="$1" raw json
+  raw=$(
+    AWS_PROFILE="${AWS_PROFILE}" \
+    GOOGLE_CREDENTIALS="${GOOGLE_CREDENTIALS:-}" \
+    "${TOFU_LAYER_RUN}" "${layer}" "${WORKSPACE}" output 2>/dev/null
+  ) || return 1
+  json=$(echo "${raw}" | awk '/^\{/{found=1} found{print}')
+  [[ -n "${json}" ]] || return 1
+  echo "${json}" | jq '.aws_instances.value // empty'
+}
+
+# Map a target layer to the sibling layer most likely to hold its public bastion:
+# a `_data` layer pairs with its runtime layer (project_data → project). Other layers
+# map to themselves.
+bastion_sibling_layer() {
+  local layer="$1"
+  case "${layer}" in
+    *_data) echo "${layer%_data}" ;;
+    *)      echo "${layer}" ;;
+  esac
 }
 
 # ── Dependency check ──────────────────────────────────────────────────────────
@@ -168,16 +220,8 @@ if [[ "${MODE}" == "layer" ]]; then
 
   info "Fetching outputs from layer '${LAYER}' (workspace: ${WORKSPACE}, profile: ${AWS_PROFILE}) …"
   echo
-  RAW_OUTPUT=$(
-    AWS_PROFILE="${AWS_PROFILE}" \
-    GOOGLE_CREDENTIALS="${GOOGLE_CREDENTIALS:-}" \
-    "${TOFU_LAYER_RUN}" "${LAYER}" "${WORKSPACE}" output 2>/dev/null
-  ) || die "Failed to fetch tofu outputs for layer '${LAYER}'."
-
-  LAYER_JSON=$(echo "${RAW_OUTPUT}" | awk '/^\{/{found=1} found{print}')
-  [[ -n "${LAYER_JSON}" ]] || die "Could not parse JSON from tofu outputs. Run with 2>&1 to debug."
-
-  AWS_INSTANCES_JSON=$(echo "${LAYER_JSON}" | jq '.aws_instances.value // empty')
+  AWS_INSTANCES_JSON=$(fetch_aws_instances "${LAYER}") \
+    || die "Failed to fetch tofu outputs for layer '${LAYER}'."
   [[ -n "${AWS_INSTANCES_JSON}" && "${AWS_INSTANCES_JSON}" != "null" ]] \
     || die "Output 'aws_instances' not found in layer '${LAYER}'. Choose a layer that exposes AWS compute outputs."
 
@@ -238,14 +282,28 @@ prompt_choice USE_JUMP "Connect via a jump host (public-subnet bastion)?" "${JUM
 if [[ "${USE_JUMP}" == "yes" ]]; then
   echo
   # In layer mode, offer instances that have a public IP as bastion candidates.
-  if [[ "${MODE}" == "layer" && -n "${AWS_INSTANCES_JSON:-}" ]]; then
+  # The target layer (e.g. project_data) often has only private VMs, so fall back to
+  # the sibling runtime layer (project) which holds the public bastion.
+  BASTION_JSON="${AWS_INSTANCES_JSON:-}"
+  if [[ "${MODE}" == "layer" ]]; then
+    if [[ -z "$(echo "${BASTION_JSON:-}" | jq -r '.[] | select(.external_ip != null and .external_ip != "") | .name' 2>/dev/null)" ]]; then
+      SIBLING_LAYER="$(bastion_sibling_layer "${LAYER}")"
+      if [[ "${SIBLING_LAYER}" != "${LAYER}" ]]; then
+        info "No public-IP VM in layer '${LAYER}'; checking sibling layer '${SIBLING_LAYER}' for a bastion …"
+        SIBLING_JSON="$(fetch_aws_instances "${SIBLING_LAYER}" 2>/dev/null || true)"
+        [[ -n "${SIBLING_JSON}" && "${SIBLING_JSON}" != "null" ]] && BASTION_JSON="${SIBLING_JSON}"
+      fi
+    fi
+  fi
+
+  if [[ "${MODE}" == "layer" && -n "${BASTION_JSON:-}" && "${BASTION_JSON}" != "null" ]]; then
     BASTION_NAMES=()
     while IFS= read -r name; do BASTION_NAMES+=("$name"); done \
-      < <(echo "${AWS_INSTANCES_JSON}" | jq -r '.[] | select(.external_ip != null and .external_ip != "") | .name')
+      < <(echo "${BASTION_JSON}" | jq -r '.[] | select(.external_ip != null and .external_ip != "") | .name')
     if [[ ${#BASTION_NAMES[@]} -gt 0 ]]; then
       prompt_choice BASTION_VM "Bastion instance (public subnet)" \
         "${PREV_BASTION_VM:-${BASTION_NAMES[0]}}" "${BASTION_NAMES[@]}"
-      BASTION_HOST=$(echo "${AWS_INSTANCES_JSON}" | jq -r --arg n "${BASTION_VM}" \
+      BASTION_HOST=$(echo "${BASTION_JSON}" | jq -r --arg n "${BASTION_VM}" \
         '.[] | select(.name == $n) | .external_ip')
       info "Bastion public IP : ${BASTION_HOST}"
     else
@@ -289,6 +347,11 @@ read -r -p "$(echo -e "${CYAN}?${NC} Connect? [Y/n]: ")" CONFIRM
 # Save before connecting so values persist even if the session is long-lived.
 save_config
 success "Saved values to ${CONF_FILE}"
+echo
+
+# Refresh stale host keys (rebuilt instances reuse their IP with a new host key).
+[[ "${USE_JUMP:-no}" == "yes" ]] && refresh_known_host "${BASTION_HOST}"
+refresh_known_host "${HOST}"
 echo
 
 # ── Connect ───────────────────────────────────────────────────────────────────
