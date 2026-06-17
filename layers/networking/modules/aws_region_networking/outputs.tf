@@ -32,3 +32,13 @@ output "nat_gateways" {
     }
   }
 }
+
+output "ssh_security_group_ids" {
+  description = "VPC name => ssh security group id."
+  value       = { for k, v in aws_security_group.ssh : k => v.id }
+}
+
+output "subnet_vpc_names" {
+  description = "Flattened subnet key => VPC name (same keys as subnet_ids)."
+  value       = { for k, s in local.subnets_by_key : k => s.vpc_name }
+}

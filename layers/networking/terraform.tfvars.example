@@ -22,6 +22,12 @@ gcp_region     = "us-central1"
 # Creates one NAT gateway + Elastic IP per VPC that has both a public and a private subnet.
 # aws_enable_nat_gateway = false
 
+# Optional: default CIDRs allowed direct SSH (tcp/22) to the per-VPC AWS ssh security group when
+# network_topology.aws.ssh_ingress_source_ranges is omitted. Attach the SG to a VM with ssh_sg = true in
+# the project / project_data computes. Per-VPC override via vpcs.<name>.ssh_ingress_source_ranges below.
+# Use your public IP /32; 0.0.0.0/0 opens SSH to the world (not recommended in prod). Empty = egress-only SG.
+# aws_ssh_ingress_source_ranges = ["203.0.113.4/32"]
+
 # Optional: CIDRs allowed to reach DB ports (gcp_db_ingress_ports) on VMs tagged with gcp_db_target_tags.
 # Typically the public-subnet CIDR(s) where app VMs live. Empty = no rule created.
 # gcp_db_ingress_source_ranges = ["10.10.1.0/24"]
@@ -54,6 +60,8 @@ network_topology = {
     # Optional: set false to skip NAT gateways (private subnets then have no outbound internet).
     # If omitted, uses aws_enable_nat_gateway at top (default true).
     # enable_nat_gateway = false
+    # Optional: default CIDRs for the per-VPC ssh SG (tcp/22). Overrides aws_ssh_ingress_source_ranges at top.
+    # ssh_ingress_source_ranges = ["203.0.113.4/32"]
     regions = {
       "us-east-1" = {
         vpcs = {
@@ -63,6 +71,9 @@ network_topology = {
               environment = "prod"
               owner         = "platform"
             }
+            # Optional: per-VPC override of ssh SG ingress CIDRs (tcp/22). For a public VM use your IP /32;
+            # for a private VM behind a bastion use the VPC CIDR or the bastion's private IP /32.
+            # ssh_ingress_source_ranges = ["203.0.113.4/32"]
             subnets = {
               public = [
                 {

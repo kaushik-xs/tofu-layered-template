@@ -13,3 +13,13 @@ variable "enable_nat_gateway" {
   type        = bool
   default     = true
 }
+
+variable "ssh_ingress_source_ranges" {
+  description = <<-EOT
+    Default CIDRs allowed to reach tcp/22 on the per-VPC ssh security group.
+    Per-VPC override: set ssh_ingress_source_ranges inside a vpcs entry.
+    Empty list (and no per-VPC override) = SG created with egress-only, no ssh ingress.
+  EOT
+  type        = list(string)
+  default     = []
+}

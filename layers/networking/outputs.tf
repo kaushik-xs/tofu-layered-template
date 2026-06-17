@@ -15,6 +15,9 @@ output "aws_networking" {
     subnet_cidrs        = module.aws_networking[0].subnet_cidrs
     nat_gateway_enabled = module.aws_networking[0].nat_gateway_enabled
     nat_gateways        = module.aws_networking[0].nat_gateways
+
+    ssh_security_group_ids = module.aws_networking[0].ssh_security_group_ids
+    subnet_vpc_names       = module.aws_networking[0].subnet_vpc_names
   } : null
 }
 

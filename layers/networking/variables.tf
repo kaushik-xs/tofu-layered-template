@@ -32,6 +32,16 @@ variable "aws_enable_nat_gateway" {
   default     = true
 }
 
+variable "aws_ssh_ingress_source_ranges" {
+  description = <<-EOT
+    Default when network_topology.aws.ssh_ingress_source_ranges is omitted: CIDRs allowed direct SSH
+    (tcp/22) to the per-VPC AWS ssh security group. Per-VPC override via vpcs.<name>.ssh_ingress_source_ranges.
+    Empty means the SG is created egress-only (no ssh ingress).
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "gcp_project_id" {
   description = "GCP project ID used by this layer."
   type        = string
