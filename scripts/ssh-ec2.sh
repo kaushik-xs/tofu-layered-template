@@ -157,6 +157,36 @@ fetch_aws_instances() {
   echo "${json}" | jq '.aws_instances.value // empty'
 }
 
+# Materialise the shared AWS compute private key from the networking layer state.
+# Every repo-provisioned EC2 (bastion + private VMs) authenticates with the single key
+# generated in the networking layer (tls_private_key.compute); the private half lives only
+# in that layer's state, never on disk. This fetches it with -show-sensitive, writes it to a
+# 0600 file under ~/.ssh, and prints that path on stdout. Status/log lines go to stderr so
+# command substitution captures only the path. Returns non-zero (prints nothing) when the
+# key output is absent (null) — e.g. a GCP-only networking deploy or a custom per-instance key.
+KEY_CACHE_DIR="${HOME}/.ssh"
+materialize_compute_key() {
+  local raw json pem key_name out
+  raw=$(
+    AWS_PROFILE="${AWS_PROFILE}" \
+    GOOGLE_CREDENTIALS="${GOOGLE_CREDENTIALS:-}" \
+    "${TOFU_LAYER_RUN}" networking "${WORKSPACE}" output -show-sensitive 2>/dev/null
+  ) || return 1
+  json=$(echo "${raw}" | awk '/^\{/{found=1} found{print}')
+  [[ -n "${json}" ]] || return 1
+
+  pem=$(echo "${json}" | jq -r '.aws_compute_private_key_pem.value // empty')
+  key_name=$(echo "${json}" | jq -r '.aws_compute_key_pair_name.value // empty')
+  [[ -n "${pem}" ]] || return 1   # key not generated (null) — nothing to write
+
+  out="${KEY_CACHE_DIR}/tofu-${WORKSPACE}-aws-compute.pem"
+  mkdir -p "${KEY_CACHE_DIR}"
+  ( umask 077; printf '%s\n' "${pem}" > "${out}" )
+  chmod 600 "${out}"
+  info "Retrieved shared compute key '${key_name:-?}' from networking state → ${out}" >&2
+  echo "${out}"
+}
+
 # Map a target layer to the sibling layer most likely to hold its public bastion:
 # a `_data` layer pairs with its runtime layer (project_data → project). Other layers
 # map to themselves.
@@ -258,6 +288,17 @@ if [[ "${MODE}" == "layer" ]]; then
     prompt HOST "Host (IP or DNS) to connect to" "${PREV_HOST}"
   fi
   echo
+
+  # Auto-fetch the shared compute key from networking state so the SSH key prompt
+  # below defaults to the real key instead of a guessed .pem. Best-effort: on failure
+  # (no key generated, or networking state unreachable) we leave the saved default.
+  info "Resolving shared SSH key from networking layer state …"
+  if MANAGED_KEY="$(materialize_compute_key)"; then
+    DEFAULT_SSH_KEY="${MANAGED_KEY}"
+  else
+    warn "Could not retrieve a shared compute key from networking state; falling back to saved/default key."
+  fi
+  echo
 else
   echo -e "${YELLOW}── Manual target ─────────────────────────────────────────${NC}"
   prompt HOST "Host (IP or DNS) to connect to" "${PREV_HOST}"
@@ -268,7 +309,8 @@ fi
 echo -e "${YELLOW}── SSH ───────────────────────────────────────────────────${NC}"
 # Default user: ubuntu (ubuntu-server-lts) or ec2-user (amazon-linux-2023).
 prompt SSH_USER "Remote user" "${PREV_SSH_USER:-ubuntu}"
-prompt SSH_KEY  "Path to SSH private key (.pem)" "${PREV_SSH_KEY:-${HOME}/.ssh/id_rsa}"
+# Prefer the key auto-fetched from networking state (layer mode); else saved; else id_rsa.
+prompt SSH_KEY  "Path to SSH private key (.pem)" "${DEFAULT_SSH_KEY:-${PREV_SSH_KEY:-${HOME}/.ssh/id_rsa}}"
 ensure_key SSH_KEY
 echo
 

@@ -13,16 +13,27 @@ locals {
     for _, v in local.instances : try(v.ubuntu_ami_name_filter, var.ubuntu_ami_name_filter)
     if try(v.os, "amazon-linux-2023") == "ubuntu-server-lts" && (try(v.ami_id, null) == null || trimspace(tostring(v.ami_id)) == "")
   ])
+
+  # Per-instance Amazon Linux 2023 AMI name filter, falling back to the module default. Deduped to a set so
+  # instances sharing a filter share a single data.aws_ami lookup. Only instances that resolve their AMI through
+  # the Amazon Linux lookup (os = amazon-linux-2023, the default, with no ami_id override) are included.
+  # The filter string encodes the architecture (e.g. al2023-ami-*-x86_64 vs al2023-ami-*-arm64).
+  amazon_linux_ami_name_filters = toset([
+    for _, v in local.instances : try(v.amazon_linux_ami_name_filter, var.amazon_linux_ami_name_filter)
+    if try(v.os, "amazon-linux-2023") == "amazon-linux-2023" && (try(v.ami_id, null) == null || trimspace(tostring(v.ami_id)) == "")
+  ])
 }
 
+# Amazon Linux 2023; update the name filter (module default or per-instance) for a different release/architecture.
+# Keyed by the name filter string so instances sharing a filter reuse one lookup.
 data "aws_ami" "amazon_linux_2023" {
-  count       = length(local.instances) > 0 ? 1 : 0
+  for_each    = local.amazon_linux_ami_name_filters
   most_recent = true
   owners      = ["amazon"]
 
   filter {
     name   = "name"
-    values = ["al2023-ami-*-x86_64"]
+    values = [each.value]
   }
 
   filter {
@@ -85,17 +96,19 @@ resource "aws_instance" "this" {
 
   ami = coalesce(
     try(each.value.ami_id, null) != null && trimspace(tostring(each.value.ami_id)) != "" ? each.value.ami_id : null,
-    try(each.value.os, "amazon-linux-2023") == "ubuntu-server-lts" ? data.aws_ami.ubuntu_lts[try(each.value.ubuntu_ami_name_filter, var.ubuntu_ami_name_filter)].id : data.aws_ami.amazon_linux_2023[0].id
+    try(each.value.os, "amazon-linux-2023") == "ubuntu-server-lts" ? data.aws_ami.ubuntu_lts[try(each.value.ubuntu_ami_name_filter, var.ubuntu_ami_name_filter)].id : data.aws_ami.amazon_linux_2023[try(each.value.amazon_linux_ami_name_filter, var.amazon_linux_ami_name_filter)].id
   )
   instance_type = try(each.value.instance_type, "t3.micro")
   subnet_id     = data.aws_subnet.instance[each.key].id
 
   private_ip = try(each.value.private_ip, null)
 
-  # Per-instance key_name wins; otherwise the module-managed key pair (when ssh_public_key_path is set); else none.
+  # Per-instance key_name wins; then module-level var.key_name (e.g. shared networking key); then the module-managed
+  # key pair (when ssh_public_key_path is set); else none.
   key_name = (
     try(each.value.key_name, null) != null && trimspace(tostring(each.value.key_name)) != "" ?
     each.value.key_name :
+    trimspace(var.key_name) != "" ? var.key_name :
     (length(aws_key_pair.this) > 0 ? aws_key_pair.this[0].key_name : null)
   )
 

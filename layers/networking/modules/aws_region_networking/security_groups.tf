@@ -11,6 +11,22 @@ locals {
       var.ssh_ingress_source_ranges
     )
   }
+
+  db_ranges_by_vpc = {
+    for vpc_name, vpc in var.vpcs : vpc_name => (
+      length(try(vpc.db_ingress_source_ranges, [])) > 0 ?
+      vpc.db_ingress_source_ranges :
+      var.db_ingress_source_ranges
+    )
+  }
+
+  web_ranges_by_vpc = {
+    for vpc_name, vpc in var.vpcs : vpc_name => (
+      length(try(vpc.web_ingress_source_ranges, [])) > 0 ?
+      vpc.web_ingress_source_ranges :
+      var.web_ingress_source_ranges
+    )
+  }
 }
 
 resource "aws_security_group" "ssh" {
@@ -28,6 +44,28 @@ resource "aws_security_group" "ssh" {
       to_port     = 22
       protocol    = "tcp"
       cidr_blocks = local.ssh_ranges_by_vpc[each.key]
+    }
+  }
+
+  dynamic "ingress" {
+    for_each = length(local.db_ranges_by_vpc[each.key]) > 0 ? toset(var.db_ports) : toset([])
+    content {
+      description = "DB ${ingress.value} from ${join(", ", local.db_ranges_by_vpc[each.key])}"
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      cidr_blocks = local.db_ranges_by_vpc[each.key]
+    }
+  }
+
+  dynamic "ingress" {
+    for_each = length(local.web_ranges_by_vpc[each.key]) > 0 ? toset(var.web_ports) : toset([])
+    content {
+      description = "Web ${ingress.value} from ${join(", ", local.web_ranges_by_vpc[each.key])}"
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      cidr_blocks = local.web_ranges_by_vpc[each.key]
     }
   }
 

@@ -8,6 +8,12 @@ aws_region     = "us-east-1"
 gcp_project_id = "example-project-id"
 gcp_region     = "us-central1"
 
+# Shared EC2 key pair name, generated in this layer (tls_private_key + aws_key_pair) and consumed by the
+# project / project_data layers via remote state so the public bastion and private VMs share one key (SSH jump).
+# Must be unique per account/region — include the environment. Leave empty/omit for a GCP-only deploy.
+# Private key is exposed as the sensitive output aws_compute_private_key_pem.
+aws_compute_key_pair_name = "example-compute"
+
 # Optional: default for IAP SSH firewall rules when network_topology.gcp.enable_iap_ssh_firewall is not set.
 # gcp_enable_iap_ssh_firewall = false
 
@@ -27,6 +33,17 @@ gcp_region     = "us-central1"
 # the project / project_data computes. Per-VPC override via vpcs.<name>.ssh_ingress_source_ranges below.
 # Use your public IP /32; 0.0.0.0/0 opens SSH to the world (not recommended in prod). Empty = egress-only SG.
 # aws_ssh_ingress_source_ranges = ["203.0.113.4/32"]
+
+# Optional: CIDRs allowed to reach the DB ports on the same per-VPC ssh SG, so app + db instances sharing it can talk.
+# Set to the VPC CIDR. Per-VPC override via vpcs.<name>.db_ingress_source_ranges below. Empty = no DB rule.
+# aws_db_ingress_source_ranges = ["10.0.0.0/16"]
+# aws_db_ports                 = [5432, 6379, 5672]  # PostgreSQL, Redis, AMQP/RabbitMQ
+
+# Optional: CIDRs allowed to reach the web ports on the per-VPC ssh SG, when network_topology.aws.web_ingress_source_ranges
+# is omitted. Use ["0.0.0.0/0"] so Caddy serves public HTTP/HTTPS and Let's Encrypt ACME HTTP-01 (tcp/80) can validate.
+# Per-VPC override via vpcs.<name>.web_ingress_source_ranges below. Empty = no web rule.
+# aws_web_ingress_source_ranges = ["0.0.0.0/0"]
+# aws_web_ports                 = [80, 443]  # HTTP / ACME HTTP-01, HTTPS
 
 # Optional: CIDRs allowed to reach DB ports (gcp_db_ingress_ports) on VMs tagged with gcp_db_target_tags.
 # Typically the public-subnet CIDR(s) where app VMs live. Empty = no rule created.
@@ -62,6 +79,9 @@ network_topology = {
     # enable_nat_gateway = false
     # Optional: default CIDRs for the per-VPC ssh SG (tcp/22). Overrides aws_ssh_ingress_source_ranges at top.
     # ssh_ingress_source_ranges = ["203.0.113.4/32"]
+    # Optional: default CIDRs for the per-VPC web ingress (web_ports). Overrides aws_web_ingress_source_ranges at top.
+    # web_ingress_source_ranges = ["0.0.0.0/0"]
+    # web_ports                 = [80, 443]
     regions = {
       "us-east-1" = {
         vpcs = {
@@ -74,6 +94,9 @@ network_topology = {
             # Optional: per-VPC override of ssh SG ingress CIDRs (tcp/22). For a public VM use your IP /32;
             # for a private VM behind a bastion use the VPC CIDR or the bastion's private IP /32.
             # ssh_ingress_source_ranges = ["203.0.113.4/32"]
+            # Public VM (Caddy + Let's Encrypt): open web ports to the internet so ACME HTTP-01 (tcp/80) reaches it.
+            web_ingress_source_ranges = ["0.0.0.0/0"]
+            # web_ports = [80, 443]
             subnets = {
               public = [
                 {

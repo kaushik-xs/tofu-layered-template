@@ -42,6 +42,39 @@ variable "aws_ssh_ingress_source_ranges" {
   default     = []
 }
 
+variable "aws_db_ingress_source_ranges" {
+  description = <<-EOT
+    Default when network_topology.aws.db_ingress_source_ranges is omitted: CIDRs allowed to reach the DB ports
+    (aws_db_ports) on the per-VPC AWS ssh security group. Set to the VPC CIDR so app instances reach the DB instance
+    on the same SG. Per-VPC override via vpcs.<name>.db_ingress_source_ranges. Empty = no DB ingress rule.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+variable "aws_db_ports" {
+  description = "Default when network_topology.aws.db_ports is omitted: TCP ports for the DB ingress rule (5432 PostgreSQL, 6379 Redis, 5672 AMQP/RabbitMQ)."
+  type        = list(number)
+  default     = [5432, 6379, 5672]
+}
+
+variable "aws_web_ingress_source_ranges" {
+  description = <<-EOT
+    Default when network_topology.aws.web_ingress_source_ranges is omitted: CIDRs allowed to reach the web ports
+    (aws_web_ports) on the per-VPC AWS ssh security group. Use ["0.0.0.0/0"] for public HTTP/HTTPS so Caddy can
+    serve traffic and Let's Encrypt ACME HTTP-01 (tcp/80) can validate. Per-VPC override via
+    vpcs.<name>.web_ingress_source_ranges. Empty = no web ingress rule.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+variable "aws_web_ports" {
+  description = "Default when network_topology.aws.web_ports is omitted: TCP ports for the web ingress rule (80 HTTP / ACME HTTP-01, 443 HTTPS)."
+  type        = list(number)
+  default     = [80, 443]
+}
+
 variable "gcp_project_id" {
   description = "GCP project ID used by this layer."
   type        = string
@@ -152,6 +185,17 @@ variable "network_topology" {
   EOT
   type        = any
   default     = {}
+}
+
+variable "aws_compute_key_pair_name" {
+  description = <<-EOT
+    Name of the shared EC2 key pair generated in this layer and consumed by the project and project_data layers
+    (bastion + private VMs use the same key so you can SSH the bastion and jump to private VMs). Must be unique per
+    AWS account/region — include the workspace/environment in the value. Leave empty to create no key pair (e.g. a
+    GCP-only deploy); when empty the aws_compute_key_pair_name / aws_compute_private_key_pem outputs are null.
+  EOT
+  type        = string
+  default     = ""
 }
 
 variable "external_static_ips" {

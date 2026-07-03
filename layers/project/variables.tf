@@ -29,6 +29,12 @@ variable "aws_ubuntu_ami_name_filter" {
   default     = "ubuntu/images/hvm-ssd*/ubuntu-resolute-26.04-amd64-server-*"
 }
 
+variable "aws_amazon_linux_ami_name_filter" {
+  description = "Name filter for the Amazon Linux 2023 AMI lookup in aws_compute_instances. Override when targeting a different release/architecture (al2023-ami-*-x86_64 or al2023-ami-*-arm64). A per-instance amazon_linux_ami_name_filter in computes.aws.instances overrides this."
+  type        = string
+  default     = "al2023-ami-*-x86_64"
+}
+
 variable "aws_profile" {
   description = "AWS CLI profile name; must match AWS_PROFILE used with scripts/tofu-layer-run.sh. For project the script exports TF_VAR_aws_profile=$AWS_PROFILE (not set in tfvars). If you run tofu without the script, set TF_VAR_aws_profile to the same value as AWS_PROFILE."
   type        = string
@@ -51,18 +57,6 @@ variable "gcp_compute_ssh_public_key_path" {
     Optional path to an SSH *public* key file (e.g. ~/.ssh/id_rsa.pub) whose matching private key is used with
     ansible-playbook. The public key is merged into each GCP instance metadata as ssh-keys (ubuntu or debian user),
     so the VM authorizes SSH before local_exec runs. If empty, add keys via instance metadata, project ssh-keys, or OS Login.
-  EOT
-  type        = string
-  default     = ""
-}
-
-variable "aws_compute_ssh_public_key_path" {
-  description = <<-EOT
-    Optional path to an SSH *public* key file (e.g. ~/.ssh/id_rsa.pub). When set, a managed aws_key_pair is created
-    and attached to every AWS instance via key_name, so SSH (and the ansible local_exec provisioner) authenticates at
-    first boot. Pass the matching private key to scripts/ssh-ec2.sh. If you only have a .pem, derive the .pub once with
-    `ssh-keygen -y -f key.pem > key.pem.pub`. A per-instance key_name in computes.aws.instances overrides this.
-    Empty = no key pair attached (you must set per-instance key_name or you will get Permission denied (publickey)).
   EOT
   type        = string
   default     = ""
