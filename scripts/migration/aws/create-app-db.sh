@@ -16,15 +16,20 @@
 # What this script does:
 #   1.  Loads saved values from config file (if present)
 #   2.  Prompts for connection type (direct SSH or bastion jump)
-#   3.  Prompts for all required values, showing previous answers as defaults
-#   4.  Saves non-secret values to config file on confirmation
-#   5.  Verifies connectivity to the instance
-#   6.  Verifies the Docker container is running and PostgreSQL is accepting connections
-#   7.  Creates the application user (idempotent)
-#   8.  Creates the application database owned by the app user (idempotent)
-#   9.  Grants CONNECT + all privileges on the database to the app user
-#   10. Grants schema, table, and sequence permissions + sets default privileges
-#   11. Prints a connection test command
+#   3.  Prompts for connection/container values, showing previous answers as defaults
+#   4.  Reads the databases/users/passwords to create from a CSV file
+#         CSV columns: db_name,db_user,db_password  (one database per line;
+#         an optional header row and #-comment lines are skipped)
+#   5.  Prints a summary of every database and asks for a single confirmation
+#   6.  Saves non-secret values to config file
+#   7.  Verifies connectivity to the instance
+#   8.  Verifies the Docker container is running and PostgreSQL is accepting connections
+#   9.  For each CSV row (idempotent):
+#         - Creates the application user
+#         - Creates the application database owned by the app user
+#         - Grants CONNECT + all privileges on the database to the app user
+#         - Grants schema, table, and sequence permissions + sets default privileges
+#   10. Prints a connection test command
 #
 set -euo pipefail
 
@@ -40,8 +45,7 @@ PREV_BASTION_HOST=""
 PREV_BASTION_USER=""
 PREV_BASTION_SSH_KEY=""
 PREV_CONTAINER_NAME=""
-PREV_DB_NAME=""
-PREV_DB_USER=""
+PREV_CSV_FILE=""
 
 load_config() {
   # shellcheck source=/dev/null
@@ -61,8 +65,7 @@ PREV_BASTION_HOST="${BASTION_HOST:-}"
 PREV_BASTION_USER="${BASTION_USER:-}"
 PREV_BASTION_SSH_KEY="${BASTION_SSH_KEY:-}"
 PREV_CONTAINER_NAME="${CONTAINER_NAME}"
-PREV_DB_NAME="${DB_NAME}"
-PREV_DB_USER="${DB_USER}"
+PREV_CSV_FILE="${CSV_FILE}"
 CONF
 }
 
@@ -257,10 +260,41 @@ prompt CONTAINER_NAME    "Running Docker container name"  "${PREV_CONTAINER_NAME
 prompt POSTGRES_PASSWORD "postgres superuser password"    "" "true"
 
 echo
-echo -e "${YELLOW}── Application database ─────────────────────────────────${NC}"
-prompt DB_NAME     "Database name to create"             "${PREV_DB_NAME}"
-prompt DB_USER     "Application username"                "${PREV_DB_USER}"
-prompt DB_PASSWORD "Password for '${DB_USER}'"          "" "true"
+echo -e "${YELLOW}── Application databases (CSV) ──────────────────────────${NC}"
+echo "  CSV columns: db_name,db_user,db_password (one database per line)."
+echo "  A header row named 'db_name,db_user,db_password' is skipped if present."
+prompt CSV_FILE "Path to CSV file" "${PREV_CSV_FILE}"
+
+[[ -f "${CSV_FILE}" ]] || die "CSV file '${CSV_FILE}' not found."
+
+# ── Parse CSV into parallel arrays ────────────────────────────────────────────
+DB_NAMES=(); DB_USERS=(); DB_PASSWORDS=()
+line_no=0
+while IFS= read -r raw_line || [[ -n "${raw_line}" ]]; do
+  line_no=$((line_no + 1))
+  # Strip trailing CR (Windows line endings) and surrounding whitespace.
+  raw_line="${raw_line%$'\r'}"
+  # Skip blank lines and comment lines.
+  [[ -z "${raw_line//[[:space:]]/}" ]] && continue
+  [[ "${raw_line}" =~ ^[[:space:]]*# ]] && continue
+
+  IFS=',' read -r c_name c_user c_pass <<< "${raw_line}"
+  # Trim whitespace around each field.
+  c_name="${c_name#"${c_name%%[![:space:]]*}"}"; c_name="${c_name%"${c_name##*[![:space:]]}"}"
+  c_user="${c_user#"${c_user%%[![:space:]]*}"}"; c_user="${c_user%"${c_user##*[![:space:]]}"}"
+
+  # Skip a header row.
+  if [[ "${c_name}" == "db_name" && "${c_user}" == "db_user" ]]; then
+    continue
+  fi
+
+  [[ -z "${c_name}" || -z "${c_user}" || -z "${c_pass}" ]] \
+    && die "CSV line ${line_no} is malformed. Expected: db_name,db_user,db_password"
+
+  DB_NAMES+=("${c_name}"); DB_USERS+=("${c_user}"); DB_PASSWORDS+=("${c_pass}")
+done < "${CSV_FILE}"
+
+[[ "${#DB_NAMES[@]}" -gt 0 ]] || die "No database entries found in '${CSV_FILE}'."
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo
@@ -268,11 +302,17 @@ echo -e "${YELLOW}── Summary ───────────────�
 echo "  Connection  : ${CONNECTION_TYPE}"
 echo "  Instance    : ${INSTANCE_LABEL}"
 echo "  Container   : ${CONTAINER_NAME}"
-echo "  Database    : ${DB_NAME}"
-echo "  App user    : ${DB_USER}"
+echo "  CSV file    : ${CSV_FILE}"
+echo "  Databases   : ${#DB_NAMES[@]}"
+echo
+printf "    %-30s %-30s %s\n" "DATABASE" "APP USER" "PASSWORD"
+printf "    %-30s %-30s %s\n" "--------" "--------" "--------"
+for i in "${!DB_NAMES[@]}"; do
+  printf "    %-30s %-30s %s\n" "${DB_NAMES[$i]}" "${DB_USERS[$i]}" "********"
+done
 echo
 
-read -r -p "$(echo -e "${CYAN}?${NC} Proceed? [y/N]: ")" CONFIRM
+read -r -p "$(echo -e "${CYAN}?${NC} Create the ${#DB_NAMES[@]} database(s) above? [y/N]: ")" CONFIRM
 [[ "$(echo "${CONFIRM}" | tr '[:upper:]' '[:lower:]')" == "y" ]] || { info "Aborted."; exit 0; }
 
 # ── Step 5 — Verify connectivity ─────────────────────────────────────────────
@@ -307,44 +347,64 @@ vm_docker exec "${CONTAINER_NAME}" pg_isready -U postgres > /dev/null \
   || die "PostgreSQL inside '${CONTAINER_NAME}' is not ready."
 success "PostgreSQL is ready."
 
-# ── Step 7 — Create application user (idempotent) ────────────────────────────
-info "Creating user '${DB_USER}' …"
-USER_EXISTS=$(pg_query "postgres" \
-  "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}';")
-if [[ "${USER_EXISTS}" == "1" ]]; then
-  warn "User '${DB_USER}' already exists — updating password."
-  pg_exec "postgres" "ALTER USER \"${DB_USER}\" WITH PASSWORD '${DB_PASSWORD}';"
-  success "Password updated for '${DB_USER}'."
-else
-  pg_exec "postgres" "CREATE USER \"${DB_USER}\" WITH PASSWORD '${DB_PASSWORD}';"
-  success "User '${DB_USER}' created."
-fi
+# ── Per-database provisioning (idempotent) ───────────────────────────────────
+# create_app_db <db_name> <db_user> <db_password>
+# Runs the user + database + privilege steps for one CSV entry.
+create_app_db() {
+  local DB_NAME="$1"
+  local DB_USER="$2"
+  local DB_PASSWORD="$3"
 
-# ── Step 8 — Create database (idempotent) ────────────────────────────────────
-info "Checking database '${DB_NAME}' …"
-DB_EXISTS=$(pg_query "postgres" \
-  "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}';")
-if [[ "${DB_EXISTS}" == "1" ]]; then
-  warn "Database '${DB_NAME}' already exists — skipping creation."
-else
+  # Skip the whole entry if the database already exists.
+  info "Checking database '${DB_NAME}' …"
+  local DB_EXISTS
+  DB_EXISTS=$(pg_query "postgres" \
+    "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}';")
+  if [[ "${DB_EXISTS}" == "1" ]]; then
+    warn "Database '${DB_NAME}' already exists — skipping this entry."
+    return 0
+  fi
+
+  # Create application user (idempotent).
+  info "Creating user '${DB_USER}' …"
+  local USER_EXISTS
+  USER_EXISTS=$(pg_query "postgres" \
+    "SELECT 1 FROM pg_roles WHERE rolname='${DB_USER}';")
+  if [[ "${USER_EXISTS}" == "1" ]]; then
+    warn "User '${DB_USER}' already exists — updating password."
+    pg_exec "postgres" "ALTER USER \"${DB_USER}\" WITH PASSWORD '${DB_PASSWORD}';"
+    success "Password updated for '${DB_USER}'."
+  else
+    pg_exec "postgres" "CREATE USER \"${DB_USER}\" WITH PASSWORD '${DB_PASSWORD}';"
+    success "User '${DB_USER}' created."
+  fi
+
+  # Create database owned by the app user.
   pg_exec "postgres" "CREATE DATABASE \"${DB_NAME}\" OWNER \"${DB_USER}\";"
   success "Database '${DB_NAME}' created."
-fi
 
-# ── Step 9 — Grant database-level privileges ──────────────────────────────────
-info "Granting database privileges to '${DB_USER}' …"
-pg_exec "postgres" "GRANT CONNECT ON DATABASE \"${DB_NAME}\" TO \"${DB_USER}\";"
-pg_exec "postgres" "GRANT ALL PRIVILEGES ON DATABASE \"${DB_NAME}\" TO \"${DB_USER}\";"
-success "Database privileges granted."
+  # Grant database-level privileges.
+  info "Granting database privileges to '${DB_USER}' …"
+  pg_exec "postgres" "GRANT CONNECT ON DATABASE \"${DB_NAME}\" TO \"${DB_USER}\";"
+  pg_exec "postgres" "GRANT ALL PRIVILEGES ON DATABASE \"${DB_NAME}\" TO \"${DB_USER}\";"
+  success "Database privileges granted."
 
-# ── Step 10 — Grant schema / table / sequence privileges ─────────────────────
-info "Granting schema and object privileges …"
-pg_exec "${DB_NAME}" "GRANT ALL ON SCHEMA public TO \"${DB_USER}\";"
-pg_exec "${DB_NAME}" "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO \"${DB_USER}\";"
-pg_exec "${DB_NAME}" "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO \"${DB_USER}\";"
-pg_exec "${DB_NAME}" "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO \"${DB_USER}\";"
-pg_exec "${DB_NAME}" "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO \"${DB_USER}\";"
-success "Schema and object privileges granted."
+  # Grant schema / table / sequence privileges.
+  info "Granting schema and object privileges …"
+  pg_exec "${DB_NAME}" "GRANT ALL ON SCHEMA public TO \"${DB_USER}\";"
+  pg_exec "${DB_NAME}" "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO \"${DB_USER}\";"
+  pg_exec "${DB_NAME}" "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO \"${DB_USER}\";"
+  pg_exec "${DB_NAME}" "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO \"${DB_USER}\";"
+  pg_exec "${DB_NAME}" "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO \"${DB_USER}\";"
+  success "Schema and object privileges granted."
+}
+
+# ── Steps 7–10 — Provision every database from the CSV ───────────────────────
+for i in "${!DB_NAMES[@]}"; do
+  echo
+  echo -e "${CYAN}── [$((i + 1))/${#DB_NAMES[@]}] ${DB_NAMES[$i]} ─────────────────────────${NC}"
+  create_app_db "${DB_NAMES[$i]}" "${DB_USERS[$i]}" "${DB_PASSWORDS[$i]}"
+done
 
 # ── Save config ───────────────────────────────────────────────────────────────
 save_config
@@ -353,11 +413,13 @@ success "Saved values to ${CONF_FILE}"
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo
 echo -e "${GREEN}======================================================${NC}"
-echo -e "${GREEN}  Database setup complete!${NC}"
+echo -e "${GREEN}  Database setup complete! (${#DB_NAMES[@]} database(s))${NC}"
 echo -e "${GREEN}======================================================${NC}"
 echo
-echo "  Database : ${DB_NAME}"
-echo "  User     : ${DB_USER}"
+printf "  %-30s %s\n" "DATABASE" "APP USER"
+for i in "${!DB_NAMES[@]}"; do
+  printf "  %-30s %s\n" "${DB_NAMES[$i]}" "${DB_USERS[$i]}"
+done
 echo
-echo "Test connection from the instance:"
-echo "  PGPASSWORD='<password>' psql -h 127.0.0.1 -U ${DB_USER} -d ${DB_NAME}"
+echo "Test a connection from the instance:"
+echo "  PGPASSWORD='<password>' psql -h 127.0.0.1 -U ${DB_USERS[0]} -d ${DB_NAMES[0]}"

@@ -25,3 +25,5 @@ creds
 
 *.zip
 opentofu-nuke-secrets_*
+
+/scripts/migration/aws/db-template.*.csv
