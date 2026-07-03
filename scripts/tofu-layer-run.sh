@@ -21,13 +21,18 @@
 #
 # Required env:
 #   AWS_PROFILE        Selects terraform.<profile>.<workspace>.tfvars in layers/<layer_name>/ (backend + -var-file).
+#
+# Optional env (GCP):
 #   GOOGLE_CREDENTIALS Path to a GCP service account JSON key, or the JSON contents (Google provider / ADC).
-#                      Exported for OpenTofu; also sets GOOGLE_APPLICATION_CREDENTIALS when the value is a readable file.
+#                      Optional — omit for AWS-only layers/workspaces. When set, exported for OpenTofu;
+#                      also sets GOOGLE_APPLICATION_CREDENTIALS when the value is a readable file.
 #
 # Required args:
 #   <layer_name>   Directory name under layers/ (e.g. global_identity, project)
 #   <workspace>    Same name for terraform.<profile>.<workspace>.tfvars and OpenTofu workspace
-#   <action>       One of "plan", "apply", "destroy", or "output" (output emits JSON; no confirmation required)
+#   <action>       One of "plan", "apply", "destroy", "output", or "refresh"
+#                  (output emits JSON, no confirmation; refresh runs `tofu apply -refresh-only`
+#                   to reconcile state with live infra without changing infrastructure)
 #
 # Optional args:
 #   -show-sensitive  Pass -show-sensitive to tofu plan/apply/destroy/output (reveals redacted sensitive values)
@@ -84,19 +89,20 @@ if [[ ! -d "${LAYER_DIR}" ]]; then
 fi
 
 : "${AWS_PROFILE:?AWS_PROFILE is required (selects terraform.<profile>.<workspace>.tfvars)}"
-: "${GOOGLE_CREDENTIALS:?GOOGLE_CREDENTIALS is required (GCP service account key path or JSON; used by the Google provider)}"
-
-export GOOGLE_CREDENTIALS
-# ADC and many tools expect a file path; set when GOOGLE_CREDENTIALS is a readable file.
-if [[ -f "${GOOGLE_CREDENTIALS}" && -r "${GOOGLE_CREDENTIALS}" ]]; then
-  export GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_CREDENTIALS}"
-fi
+# GOOGLE_CREDENTIALS is optional: this repo can target AWS-only or multi-cloud.
+# When unset, the Google provider is not configured by this script.
+GOOGLE_CREDENTIALS="${GOOGLE_CREDENTIALS:-}"
 
 GOOGLE_CREDENTIALS_CLIENT_EMAIL=""
-if [[ -f "${GOOGLE_CREDENTIALS}" && -r "${GOOGLE_CREDENTIALS}" ]]; then
-  GOOGLE_CREDENTIALS_CLIENT_EMAIL="$(jq -r '.client_email // empty' "${GOOGLE_CREDENTIALS}" 2>/dev/null || printf '')"
-else
-  GOOGLE_CREDENTIALS_CLIENT_EMAIL="$(printf '%s' "${GOOGLE_CREDENTIALS}" | jq -r '.client_email // empty' 2>/dev/null || printf '')"
+if [[ -n "${GOOGLE_CREDENTIALS}" ]]; then
+  export GOOGLE_CREDENTIALS
+  # ADC and many tools expect a file path; set when GOOGLE_CREDENTIALS is a readable file.
+  if [[ -f "${GOOGLE_CREDENTIALS}" && -r "${GOOGLE_CREDENTIALS}" ]]; then
+    export GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_CREDENTIALS}"
+    GOOGLE_CREDENTIALS_CLIENT_EMAIL="$(jq -r '.client_email // empty' "${GOOGLE_CREDENTIALS}" 2>/dev/null || printf '')"
+  else
+    GOOGLE_CREDENTIALS_CLIENT_EMAIL="$(printf '%s' "${GOOGLE_CREDENTIALS}" | jq -r '.client_email // empty' 2>/dev/null || printf '')"
+  fi
 fi
 
 TFVARS_PATH="${LAYER_DIR}/terraform.${AWS_PROFILE}.${WORKSPACE_NAME}.tfvars"
@@ -140,8 +146,8 @@ if [[ "${ACTUAL_TOFU_VERSION}" != "${EXPECTED_TOFU_VERSION}" ]]; then
   exit 1
 fi
 
-if [[ "${ACTION}" != "plan" && "${ACTION}" != "apply" && "${ACTION}" != "destroy" && "${ACTION}" != "output" ]]; then
-  echo "Action must be 'plan', 'apply', 'destroy', or 'output'."
+if [[ "${ACTION}" != "plan" && "${ACTION}" != "apply" && "${ACTION}" != "destroy" && "${ACTION}" != "output" && "${ACTION}" != "refresh" ]]; then
+  echo "Action must be 'plan', 'apply', 'destroy', 'output', or 'refresh'."
   exit 1
 fi
 
@@ -161,7 +167,9 @@ _tofu_layer_run_print_summary() {
   fi
 
   local _gcp_disp="${GOOGLE_CREDENTIALS}"
-  if ((${#_gcp_disp} > 72)); then
+  if [[ -z "${_gcp_disp}" ]]; then
+    _gcp_disp="(not set — GCP disabled)"
+  elif ((${#_gcp_disp} > 72)); then
     _gcp_disp="${_gcp_disp:0:69}..."
   fi
 
@@ -190,6 +198,8 @@ _tofu_layer_run_print_summary() {
     _mode="🚀  Apply — will modify live infrastructure"
   elif [[ "${ACTION}" == "destroy" ]]; then
     _mode="💥  Destroy — will delete managed infrastructure"
+  elif [[ "${ACTION}" == "refresh" ]]; then
+    _mode="🔄  Refresh — sync state with live infra · no infra changes"
   else
     _mode="📤  Output — read-only · prints outputs as JSON"
   fi
@@ -201,6 +211,8 @@ _tofu_layer_run_print_summary() {
     _action_row="$(printf '%s %-*s %s' "🚀" "${_lw}" "Action" "apply")"
   elif [[ "${ACTION}" == "destroy" ]]; then
     _action_row="$(printf '%s %-*s %s' "💥" "${_lw}" "Action" "destroy")"
+  elif [[ "${ACTION}" == "refresh" ]]; then
+    _action_row="$(printf '%s %-*s %s' "🔄" "${_lw}" "Action" "refresh (-refresh-only)")"
   else
     _action_row="$(printf '%s %-*s %s' "📤" "${_lw}" "Action" "output (JSON)")"
   fi
@@ -264,7 +276,16 @@ _tofu_layer_run_print_summary() {
 
 _tofu_layer_run_print_summary
 
-if [[ "${ACTION}" != "output" ]]; then
+if [[ "${ACTION}" == "refresh" ]]; then
+  read -r -p "🔄 Refresh will reconcile state with live infra (no infra changes). Continue? [y/N] " _tofu_layer_run_confirm
+  case "${_tofu_layer_run_confirm}" in
+    [yY]|[yY][eE][sS]) ;;
+    *)
+      echo "Aborted."
+      exit 1
+      ;;
+  esac
+elif [[ "${ACTION}" != "output" ]]; then
   if [[ "${ACTION}" == "plan" ]]; then
     read -r -p "📋 Continue with plan? [y/N] " _tofu_layer_run_confirm
   elif [[ "${ACTION}" == "apply" ]]; then
@@ -375,6 +396,9 @@ elif [[ "${ACTION}" == "destroy" ]]; then
   tofu destroy -auto-approve "${SENSITIVE_ARGS[@]+"${SENSITIVE_ARGS[@]}"}" "${TOFU_VARFILE_ARGS[@]}"
   printf 'Removing local TF_DATA_DIR after destroy: %s\n' "${TF_DATA_DIR}"
   rm -rf -- "${TF_DATA_DIR}"
+elif [[ "${ACTION}" == "refresh" ]]; then
+  _tofu_layer_run_print_tofu_cmd tofu apply -refresh-only -auto-approve "${SENSITIVE_ARGS[@]+"${SENSITIVE_ARGS[@]}"}" "${TOFU_VARFILE_ARGS[@]}"
+  tofu apply -refresh-only -auto-approve "${SENSITIVE_ARGS[@]+"${SENSITIVE_ARGS[@]}"}" "${TOFU_VARFILE_ARGS[@]}"
 else
   _tofu_layer_run_print_tofu_cmd tofu output -json "${SENSITIVE_ARGS[@]+"${SENSITIVE_ARGS[@]}"}"
   tofu output -json "${SENSITIVE_ARGS[@]+"${SENSITIVE_ARGS[@]}"}"

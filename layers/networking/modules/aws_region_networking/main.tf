@@ -23,6 +23,20 @@ locals {
     for s in local.subnets : s.vpc_name
     if try(s.subnet.type, "private") == "private"
   ])
+
+  # One public subnet key per VPC — NAT gateway must live in a public subnet.
+  public_subnet_by_vpc = {
+    for v in local.vpc_names_with_public : v => (
+      [for k, s in local.subnets_by_key : k
+      if s.vpc_name == v && try(s.subnet.type, "private") == "public"][0]
+    )
+  }
+
+  # VPCs that get a NAT gateway: have a private subnet AND a public subnet to host the NAT.
+  nat_vpcs = var.enable_nat_gateway ? toset([
+    for v in local.vpc_names_with_private : v
+    if contains(tolist(local.vpc_names_with_public), v)
+  ]) : toset([])
 }
 
 resource "aws_vpc" "this" {
@@ -124,4 +138,44 @@ resource "aws_route_table_association" "private" {
 
   subnet_id      = aws_subnet.this[each.key].id
   route_table_id = aws_route_table.private[each.value.vpc_name].id
+}
+
+# Elastic IP for the NAT gateway — one per VPC that gets NAT egress.
+resource "aws_eip" "nat" {
+  for_each = local.nat_vpcs
+
+  domain = "vpc"
+
+  tags = merge(
+    {
+      Name = "${each.key}-nat-eip"
+    },
+    try(var.vpcs[each.key].tags, {})
+  )
+}
+
+# NAT gateway in a public subnet so private-subnet VMs get outbound internet.
+resource "aws_nat_gateway" "this" {
+  for_each = local.nat_vpcs
+
+  allocation_id = aws_eip.nat[each.key].id
+  subnet_id     = aws_subnet.this[local.public_subnet_by_vpc[each.key]].id
+
+  tags = merge(
+    {
+      Name = "${each.key}-nat"
+    },
+    try(var.vpcs[each.key].tags, {})
+  )
+
+  depends_on = [aws_internet_gateway.this]
+}
+
+# Default route in each private route table to the VPC's NAT gateway.
+resource "aws_route" "private_nat" {
+  for_each = local.nat_vpcs
+
+  route_table_id         = aws_route_table.private[each.key].id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.this[each.key].id
 }

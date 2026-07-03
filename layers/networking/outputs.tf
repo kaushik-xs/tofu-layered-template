@@ -9,10 +9,15 @@ output "network_topology_enabled" {
 output "aws_networking" {
   description = "VPC and subnet ids for var.aws_region when AWS topology is enabled and populated."
   value = local.aws_networking_enabled ? {
-    region       = module.aws_networking[0].region
-    vpc_ids      = module.aws_networking[0].vpc_ids
-    subnet_ids   = module.aws_networking[0].subnet_ids
-    subnet_cidrs = module.aws_networking[0].subnet_cidrs
+    region              = module.aws_networking[0].region
+    vpc_ids             = module.aws_networking[0].vpc_ids
+    subnet_ids          = module.aws_networking[0].subnet_ids
+    subnet_cidrs        = module.aws_networking[0].subnet_cidrs
+    nat_gateway_enabled = module.aws_networking[0].nat_gateway_enabled
+    nat_gateways        = module.aws_networking[0].nat_gateways
+
+    ssh_security_group_ids = module.aws_networking[0].ssh_security_group_ids
+    subnet_vpc_names       = module.aws_networking[0].subnet_vpc_names
   } : null
 }
 
@@ -69,4 +74,15 @@ output "gcp_external_static_ips" {
     global_addresses     = module.gcp_static_ips[0].global_addresses
     global_self_links    = module.gcp_static_ips[0].global_self_links
   } : null
+}
+
+output "aws_compute_key_pair_name" {
+  description = "Shared EC2 key pair name for the project/project_data compute layers (bastion + private VMs). Null when aws_compute_key_pair_name is unset."
+  value       = local.aws_compute_key_enabled ? aws_key_pair.compute[0].key_name : null
+}
+
+output "aws_compute_private_key_pem" {
+  description = "Private key (PEM) matching aws_compute_key_pair_name. Sensitive; lives in this layer's state. Retrieve with `tofu output -raw aws_compute_private_key_pem`, write to a 0600 file, then use as -i with ProxyJump through the bastion."
+  value       = local.aws_compute_key_enabled ? tls_private_key.compute[0].private_key_pem : null
+  sensitive   = true
 }

@@ -12,7 +12,7 @@ locals {
             {
               Effect   = "Allow"
               Action   = group.bucket_actions
-              Resource = [for bk in (contains(group.bucket_keys, "*") ? keys(var.s3_buckets) : group.bucket_keys) : aws_s3_bucket.app[bk].arn]
+              Resource = [for bk in(contains(group.bucket_keys, "*") ? keys(var.s3_buckets) : group.bucket_keys) : aws_s3_bucket.app[bk].arn]
             }
           ] : [],
           # Object-level actions (e.g. s3:GetObject, s3:PutObject) — applied to objects inside the bucket
@@ -20,7 +20,7 @@ locals {
             {
               Effect   = "Allow"
               Action   = group.object_actions
-              Resource = [for bk in (contains(group.bucket_keys, "*") ? keys(var.s3_buckets) : group.bucket_keys) : "${aws_s3_bucket.app[bk].arn}/*"]
+              Resource = [for bk in(contains(group.bucket_keys, "*") ? keys(var.s3_buckets) : group.bucket_keys) : "${aws_s3_bucket.app[bk].arn}/*"]
             }
           ] : [],
         )
@@ -31,7 +31,7 @@ locals {
             {
               Effect   = "Allow"
               Action   = group.actions
-              Resource = [for qk in (contains(group.queue_keys, "*") ? keys(var.sqs_queues) : group.queue_keys) : aws_sqs_queue.app[qk].arn]
+              Resource = [for qk in(contains(group.queue_keys, "*") ? keys(var.sqs_queues) : group.queue_keys) : aws_sqs_queue.app[qk].arn]
             }
           ] : []
         )

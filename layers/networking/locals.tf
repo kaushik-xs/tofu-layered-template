@@ -36,7 +36,7 @@ check "gcp_project_defined_when_gcp_enabled" {
       !try(var.network_topology.gcp.enabled, false) ||
       contains(keys(try(var.network_topology.gcp.projects, {})), var.gcp_project_id)
     )
-    error_message = "When network_topology.gcp.enabled is true, network_topology.gcp.projects must include the layer gcp_project_id (${var.gcp_project_id})."
+    error_message = "When network_topology.gcp.enabled is true, network_topology.gcp.projects must include the layer gcp_project_id (${coalesce(var.gcp_project_id, "unset")})."
   }
 }
 
@@ -56,6 +56,6 @@ check "gcp_project_defined_when_external_static_ips_gcp_enabled" {
       !try(var.external_static_ips.gcp.enabled, false) ||
       contains(keys(try(var.external_static_ips.gcp.projects, {})), var.gcp_project_id)
     )
-    error_message = "When external_static_ips.gcp.enabled is true, external_static_ips.gcp.projects must include the layer gcp_project_id (${var.gcp_project_id})."
+    error_message = "When external_static_ips.gcp.enabled is true, external_static_ips.gcp.projects must include the layer gcp_project_id (${coalesce(var.gcp_project_id, "unset")})."
   }
 }

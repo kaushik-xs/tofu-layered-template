@@ -9,6 +9,10 @@ global_identity_workspace    = "global"
 global_identity_tf_state_key = "global_identity/secrets"
 
 aws_region     = "us-east-1"
+# Optional: name filter for the Ubuntu LTS AMI lookup (aws_compute_instances). Default targets Ubuntu 26.04 (Resolute) x86_64.
+# aws_ubuntu_ami_name_filter = "ubuntu/images/hvm-ssd*/ubuntu-resolute-26.04-amd64-server-*"
+# Optional: name filter for the Amazon Linux 2023 AMI lookup. Default targets x86_64; use al2023-ami-*-arm64 for Graviton.
+# aws_amazon_linux_ami_name_filter = "al2023-ami-*-x86_64"
 gcp_project_id = "example-project-id"
 gcp_region     = "us-central1"
 
@@ -142,6 +146,9 @@ gcp_region     = "us-central1"
 # Optional: GCP only — path to SSH public key; merged into each VM metadata so ansible/ssh can use the matching private key.
 # gcp_compute_ssh_public_key_path = "~/.ssh/id_rsa.pub"
 
+# AWS SSH key pair: generated in the networking layer (aws_compute_key_pair_name) and attached to every instance
+# automatically via networking remote state. Nothing to set here. Per-instance key_name in computes.aws.instances overrides.
+
 # Networking layer remote state (same bucket layout as scripts/tofu-layer-run.sh). This layer reads subnet and network
 # ids from networking outputs when computes.aws.enabled or computes.gcp.enabled is true. Use the same
 # tf_state_key prefix as the networking layer. Leave networking_workspace empty to use terraform.workspace so project_data
@@ -164,7 +171,7 @@ networking_tf_state_key = "opentofu/networking"
 # external_static_ip_key is set). Use templatestring placeholders public_ip, nat_ip, private_ip, name, region, instance_id
 # (GCP also zone, instance_region, cloud_nat, cloud_nat_enabled, cloud_nat_lookup_key, cloud_nat_for_instance). In this file,
 # write $${public_ip} not ${public_ip} so HCL keeps the placeholder for templatestring.
-# Optional os: AWS — amazon-linux-2023 (default) or ubuntu-server-lts (Ubuntu Server 24.04 LTS); optional ami_id overrides.
+# Optional os: AWS — amazon-linux-2023 (default) or ubuntu-server-lts (Ubuntu Server 26.04 LTS); optional ami_id overrides.
 # GCP — debian-12 (default) or ubuntu-server-lts; optional boot_disk_image overrides.
 # Optional external_static_ip_key: must match a key from the networking layer external_static_ips block
 # (aws: elastic_ips name => aws_external_static_ips.allocation_ids; gcp: regional_external_addresses name => reserved IPv4 in regional_addresses).
@@ -181,7 +188,11 @@ computes = {
         private_ip_host_index  = 10 # 10.0.1.10 when subnet is 10.0.1.0/24 (from networking state)
         external_static_ip_key = "nat-egress" # same key as external_static_ips.aws.regions["us-east-1"].elastic_ips in networking
         os                     = "ubuntu-server-lts"
+        # ubuntu_ami_name_filter = "ubuntu/images/hvm-ssd*/ubuntu-resolute-26.04-amd64-server-*" # optional per-VM override; defaults to aws_ubuntu_ami_name_filter
+        # amazon_linux_ami_name_filter = "al2023-ami-*-x86_64" # optional per-VM override (os = amazon-linux-2023); defaults to aws_amazon_linux_ami_name_filter
         instance_type          = "t3.micro"
+        root_volume_size_gb    = 20      # optional, default 20; root EBS volume size in GiB
+        root_volume_type       = "gp3"   # optional, default gp3
         tags = {
           role        = "web"
           environment = "prod"
@@ -199,6 +210,8 @@ computes = {
         network_name  = "core"
         private_ip    = "10.0.10.10" # or private_ip_host_index = 10 on 10.0.10.0/24
         instance_type = "t3.small"
+        ssh_sg        = true # attach the VPC ssh SG (tcp/22). Private subnet: no public IP, so SSH only via a bastion
+        #                      (the public VM) — set this VPC's ssh_ingress_source_ranges to the VPC CIDR / bastion IP.
         tags = {
           role        = "database"
           environment = "prod"
