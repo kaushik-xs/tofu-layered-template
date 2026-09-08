@@ -130,14 +130,27 @@ variable "iam_users" {
 
     s3_access is a list of permission groups, each targeting a subset of buckets with specific actions.
     This allows different permissions on different buckets for the same user.
-      bucket_keys    — list of logical bucket keys from s3_buckets, or ["*"] to target all buckets in this layer.
-      bucket_actions — actions applied to the bucket ARN itself (default: s3:ListBucket, s3:GetBucketLocation).
-      object_actions — actions applied to objects inside the bucket (default: s3:GetObject, s3:PutObject, s3:DeleteObject).
+      bucket_keys         — list of logical bucket keys from s3_buckets, or ["*"] to target all buckets in this layer.
+      bucket_actions      — actions applied to the bucket ARN itself (default: s3:ListBucket, s3:GetBucketLocation).
+      object_actions      — actions applied to objects inside the bucket (default: s3:GetObject, s3:PutObject, s3:DeleteObject).
+      deny_bucket_actions — explicit Deny on the bucket ARN (default: none), e.g. ["s3:DeleteBucket"].
+      deny_object_actions — explicit Deny on objects (default: none), e.g. ["s3:DeleteObject", "s3:DeleteObjectVersion"].
 
     sqs_access is a list of permission groups, each targeting a subset of queues with specific actions.
     This allows different permissions on different queues for the same user.
-      queue_keys — list of logical queue keys from sqs_queues, or ["*"] to target all queues in this layer.
-      actions    — SQS actions applied to the queue ARN (default: Send, Receive, Delete, GetQueueAttributes, GetQueueUrl).
+      queue_keys   — list of logical queue keys from sqs_queues, or ["*"] to target all queues in this layer.
+      actions      — SQS actions applied to the queue ARN (default: Send, Receive, Delete, GetQueueAttributes, GetQueueUrl).
+      deny_actions — explicit Deny on the same queues (default: none), e.g. ["sqs:DeleteQueue", "sqs:PurgeQueue"].
+      include_dlqs — also target the companion <name>-dlq queue of each selected queue that has dlq_enabled (default: false).
+
+    An explicit Deny always wins over an Allow in IAM, so a group can grant broad access (e.g. bucket_actions
+    and object_actions = ["s3:*"]) and carve destructive actions back out with deny_bucket_actions /
+    deny_object_actions. Note that s3:* here is scoped to the buckets of this layer — unlike the AWS-managed
+    AmazonS3FullAccess policy, it does not grant account-wide s3:ListAllMyBuckets.
+
+    Permissions are attached as a single inline user policy while the rendered document fits the 2048-character
+    AWS limit for inline user policies. Larger users automatically switch to one customer managed policy per
+    permission group (each capped at 6144 characters) attached to the user — see the iam_user_policies output.
 
     Access key ID and secret are stored in Terraform state and emitted as a sensitive output.
     Retrieve with: tofu output -json iam_users
@@ -146,13 +159,17 @@ variable "iam_users" {
   type = map(object({
     username = string
     s3_access = optional(list(object({
-      bucket_keys    = list(string)
-      bucket_actions = optional(list(string), ["s3:ListBucket", "s3:GetBucketLocation"])
-      object_actions = optional(list(string), ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"])
+      bucket_keys         = list(string)
+      bucket_actions      = optional(list(string), ["s3:ListBucket", "s3:GetBucketLocation"])
+      object_actions      = optional(list(string), ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"])
+      deny_bucket_actions = optional(list(string), [])
+      deny_object_actions = optional(list(string), [])
     })), [])
     sqs_access = optional(list(object({
-      queue_keys = list(string)
-      actions    = optional(list(string), ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:GetQueueUrl"])
+      queue_keys   = list(string)
+      actions      = optional(list(string), ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:GetQueueUrl"])
+      deny_actions = optional(list(string), [])
+      include_dlqs = optional(bool, false)
     })), [])
     tags = optional(map(string), {})
   }))

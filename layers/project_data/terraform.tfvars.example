@@ -80,6 +80,9 @@ gcp_region     = "us-central1"
 # its own set of actions, allowing different permissions on different resources for the same user.
 # Use ["*"] in bucket_keys / queue_keys to target all buckets or queues defined in this layer.
 # bucket_actions apply to the bucket ARN (e.g. ListBucket); object_actions apply to objects (e.g. GetObject).
+# deny_bucket_actions / deny_object_actions (S3) and deny_actions (SQS) emit explicit Deny statements over the same
+# resources — an explicit Deny beats any Allow, so a group can grant s3:* and still block deletes (see full-access-no-delete).
+# sqs_access groups can set include_dlqs = true to cover the companion <name>-dlq queues as well.
 # Access key ID and secret are stored in Terraform state — retrieve with: tofu output -json iam_users
 # iam_users = {
 #   app-backend = {
@@ -138,6 +141,31 @@ gcp_region     = "us-central1"
 #     ]
 #     tags = {
 #       purpose     = "worker"
+#       environment = "prod"
+#     }
+#   }
+#   full-access-no-delete = {
+#     username = "myorg-app-prod-user"
+#     # Full access to every bucket and queue in this layer, with destructive actions explicitly denied.
+#     s3_access = [
+#       {
+#         bucket_keys    = ["*"]
+#         bucket_actions = ["s3:*"]
+#         object_actions = ["s3:*"]
+#         deny_bucket_actions = ["s3:DeleteBucket", "s3:DeleteBucketPolicy", "s3:DeleteBucketWebsite"]
+#         deny_object_actions = ["s3:DeleteObject", "s3:DeleteObjectVersion", "s3:DeleteObjectTagging", "s3:DeleteObjectVersionTagging"]
+#       }
+#     ]
+#     sqs_access = [
+#       {
+#         queue_keys   = ["*"]
+#         include_dlqs = true
+#         actions      = ["sqs:SendMessage", "sqs:SendMessageBatch", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:DeleteMessageBatch", "sqs:ChangeMessageVisibility", "sqs:ChangeMessageVisibilityBatch", "sqs:GetQueueAttributes", "sqs:GetQueueUrl", "sqs:ListQueueTags", "sqs:ListDeadLetterSourceQueues", "sqs:StartMessageMoveTask"]
+#         deny_actions = ["sqs:DeleteQueue", "sqs:PurgeQueue"]
+#       }
+#     ]
+#     tags = {
+#       purpose     = "app"
 #       environment = "prod"
 #     }
 #   }
