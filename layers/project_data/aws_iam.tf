@@ -1,4 +1,22 @@
+data "aws_caller_identity" "current" {}
+
+data "aws_partition" "current" {}
+
 locals {
+  # Bucket and queue ARNs built from their configured names instead of read from aws_s3_bucket / aws_sqs_queue.
+  # Resource attributes stay unknown until apply for anything created in the same run, which would make the
+  # policy JSON — and so the inline-vs-managed size split below that drives for_each — unknown at plan time.
+  # Names come straight from variables, so these ARNs (and every policy document) are known during plan.
+  _iam_s3_bucket_arns = {
+    for k, b in var.s3_buckets : k => "arn:${data.aws_partition.current.partition}:s3:::${b.bucket}"
+  }
+  _iam_sqs_queue_arns = {
+    for k, q in var.sqs_queues : k => "arn:${data.aws_partition.current.partition}:sqs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${q.name}"
+  }
+  _iam_sqs_dlq_arns = {
+    for k, name in local._sqs_dlq_names : k => "arn:${data.aws_partition.current.partition}:sqs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${name}"
+  }
+
   # Resolved logical bucket keys per s3_access group, keyed "<user_key>/s3/<group index>".
   # ["*"] expands to every key in s3_buckets, so the Allow and Deny statements built from the same
   # group always target an identical set of buckets.
@@ -22,10 +40,10 @@ locals {
         for idx, group in user.sqs_access : {
           key = "${user_key}/sqs/${idx}"
           arns = concat(
-            [for qk in(contains(group.queue_keys, "*") ? keys(var.sqs_queues) : group.queue_keys) : aws_sqs_queue.app[qk].arn],
+            [for qk in(contains(group.queue_keys, "*") ? keys(var.sqs_queues) : group.queue_keys) : local._iam_sqs_queue_arns[qk]],
             group.include_dlqs ? [
               for qk in(contains(group.queue_keys, "*") ? keys(var.sqs_queues) : group.queue_keys) :
-              aws_sqs_queue.dlq[qk].arn if contains(keys(aws_sqs_queue.dlq), qk)
+              local._iam_sqs_dlq_arns[qk] if contains(keys(local._iam_sqs_dlq_arns), qk)
             ] : [],
           )
         }
@@ -53,7 +71,7 @@ locals {
                 {
                   Effect   = "Allow"
                   Action   = group.bucket_actions
-                  Resource = [for bk in local._iam_s3_group_bucket_keys["${user_key}/s3/${idx}"] : aws_s3_bucket.app[bk].arn]
+                  Resource = [for bk in local._iam_s3_group_bucket_keys["${user_key}/s3/${idx}"] : local._iam_s3_bucket_arns[bk]]
                 }
               ] : [],
               # Object-level actions (e.g. s3:GetObject, s3:PutObject) — applied to objects inside the bucket
@@ -61,7 +79,7 @@ locals {
                 {
                   Effect   = "Allow"
                   Action   = group.object_actions
-                  Resource = [for bk in local._iam_s3_group_bucket_keys["${user_key}/s3/${idx}"] : "${aws_s3_bucket.app[bk].arn}/*"]
+                  Resource = [for bk in local._iam_s3_group_bucket_keys["${user_key}/s3/${idx}"] : "${local._iam_s3_bucket_arns[bk]}/*"]
                 }
               ] : [],
               # Explicit Deny on the bucket ARN (e.g. s3:DeleteBucket) — overrides the Allow above
@@ -69,7 +87,7 @@ locals {
                 {
                   Effect   = "Deny"
                   Action   = group.deny_bucket_actions
-                  Resource = [for bk in local._iam_s3_group_bucket_keys["${user_key}/s3/${idx}"] : aws_s3_bucket.app[bk].arn]
+                  Resource = [for bk in local._iam_s3_group_bucket_keys["${user_key}/s3/${idx}"] : local._iam_s3_bucket_arns[bk]]
                 }
               ] : [],
               # Explicit Deny on objects (e.g. s3:DeleteObject) — overrides the Allow above
@@ -77,7 +95,7 @@ locals {
                 {
                   Effect   = "Deny"
                   Action   = group.deny_object_actions
-                  Resource = [for bk in local._iam_s3_group_bucket_keys["${user_key}/s3/${idx}"] : "${aws_s3_bucket.app[bk].arn}/*"]
+                  Resource = [for bk in local._iam_s3_group_bucket_keys["${user_key}/s3/${idx}"] : "${local._iam_s3_bucket_arns[bk]}/*"]
                 }
               ] : [],
             )

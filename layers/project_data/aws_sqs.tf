@@ -1,17 +1,20 @@
 locals {
   _sqs_with_dlq = { for k, v in var.sqs_queues : k => v if v.dlq_enabled }
+
+  # Companion dead-letter queue name per queue with dlq_enabled. Also used by aws_iam.tf to build DLQ ARNs.
+  _sqs_dlq_names = { for k, v in local._sqs_with_dlq : k => v.fifo_queue ? "${v.name}-dlq.fifo" : "${v.name}-dlq" }
 }
 
 resource "aws_sqs_queue" "dlq" {
   for_each = local._sqs_with_dlq
 
-  name       = each.value.fifo_queue ? "${each.value.name}-dlq.fifo" : "${each.value.name}-dlq"
+  name       = local._sqs_dlq_names[each.key]
   fifo_queue = each.value.fifo_queue
 
   message_retention_seconds = each.value.message_retention_seconds
 
   tags = merge(
-    { Name = each.value.fifo_queue ? "${each.value.name}-dlq.fifo" : "${each.value.name}-dlq" },
+    { Name = local._sqs_dlq_names[each.key] },
     each.value.tags,
   )
 }
