@@ -67,6 +67,14 @@
     groups: docker
     append: yes
 
+- name: Schedule nightly Docker system prune
+  ansible.builtin.cron:
+    name: docker system prune
+    user: ubuntu
+    minute: "0"
+    hour: "23"
+    job: /usr/bin/docker system prune -af >/home/ubuntu/docker-prune.log 2>&1
+
 - name: Display post-installation message
   ansible.builtin.debug:
     msg:
