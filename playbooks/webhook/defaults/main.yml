@@ -1,0 +1,3 @@
+---
+# Pinned apt version of webhook (Ubuntu 24.04 noble). Check available versions with: apt-cache policy webhook
+webhook_version: "2.8.0-4ubuntu0.24.04.3"
